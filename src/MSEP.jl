@@ -34,7 +34,8 @@ struct NormalGH
     x
 end
 
-"constructor"
+#constructor
+# Using a "" comment here causes a warning about redefined documentation
 function NormalGH(npoints; μ=0.0, σ=1.0)
     x, w = gausshermite(npoints)
     return NormalGH(npoints, μ, σ, w ./ sqrtπ, x)
@@ -78,7 +79,7 @@ end
 
 "Experiment constructor"
 function Experiment(npoints; 
-        funs=[identity, (z)->exp(0.4*z^2), (z)->z*exp(0.4*z^2)],
+        funs=[z->1.0, identity, (z)->exp(0.4*z^2), (z)->z*exp(0.4*z^2)],
         condY=(z)->logistic(z-2))
     quad_nodes = [NormalGH(n) for n=npoints]
     fused = [z -> f(z)*condY(z) for f = funs]
@@ -97,16 +98,16 @@ function compute(experiment::Experiment)
     nfun = length(experiment.funs)
     nquad = length(experiment.npoints)
     # following seems to be only allowed call with type as first argument
-    res = NamedArray(Real, nfun, nquad)
-    setnames!(res, ["z", "w", "wz"], 1)
-    colnames = string.(experiment.npoints)
+    res = NamedArray(Real, nfun+1, nquad)
+    setnames!(res, ["1", "z", "w", "wz", "zhat"], 1)
     setnames!(res, string.(experiment.npoints), 2)
     setdimnames!(res, "f", 1)
     setdimnames!(res, "npoints", 2)
-    for i0 = 1:nfun
-        for i1 = 1:nquad
+    for i1 = 1:nquad
+        for i0 = 1:nfun
             res[i0, i1] = experiment.quad_nodes[i1](experiment.fused_funs[i0])
         end
+        res[nfun+1, i1] = res["wz", i1]/res["w", i1]
     end
     return ExperimentResult(experiment, res)
 end

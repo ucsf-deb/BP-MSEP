@@ -99,6 +99,7 @@ function compute(experiment::Experiment)
     # following seems to be only allowed call with type as first argument
     res = NamedArray(Real, nfun, nquad)
     setnames!(res, ["z", "w", "wz"], 1)
+    colnames = string.(experiment.npoints)
     setnames!(res, string.(experiment.npoints), 2)
     setdimnames!(res, "f", 1)
     setdimnames!(res, "npoints", 2)

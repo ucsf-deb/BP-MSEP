@@ -3,6 +3,7 @@ module MSEP
 using Distributions
 using FastGaussQuadrature
 using LinearAlgebra
+using NamedArrays
 using StatsFuns
 
 # NormalGH is a struct and function name.  Not sure what the next line does.
@@ -95,7 +96,12 @@ end
 function compute(experiment::Experiment)
     nfun = length(experiment.funs)
     nquad = length(experiment.npoints)
-    res = Matrix(undef, nfun, nquad)
+    # following seems to be only allowed call with type as first argument
+    res = NamedArray(Real, nfun, nquad)
+    setnames!(res, ["z", "w", "wz"], 1)
+    setnames!(res, string.(experiment.npoints), 2)
+    setdimnames!(res, "f", 1)
+    setdimnames!(res, "npoints", 2)
     for i0 = 1:nfun
         for i1 = 1:nquad
             res[i0, i1] = experiment.quad_nodes[i1](experiment.fused_funs[i0])

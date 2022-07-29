@@ -1,4 +1,5 @@
 module MSEP
+
 using Distributions
 using FastGaussQuadrature
 using LinearAlgebra
@@ -6,9 +7,13 @@ using StatsFuns
 
 # NormalGH is a struct and function name.  Not sure what the next line does.
 export NormalGH
-# and then there's the function associate with NormalGH instances
+# same issue with
+export Experiment
 
+# and then there's the function associate with NormalGH instances
 export condzy1
+# other test code
+export Experiment, ExperimentResult, compute, go
 
 """
 Use Gauss-Hermite quadrature to evaluate a function.
@@ -50,4 +55,60 @@ function condzy1(z, k)
     return logistic(k+z)*pdf(Normal(), z)
 end
 
+"""
+evaluate integrals of various functions with varying number of quadrature points
+This is very special purpose code.
+"""
+struct Experiment
+    "array of # of points to try"
+    npoints
+    "array of functions to integrate"
+    funs
+    "conditional likelihood(Y|z) within constant factor"
+    condY
+
+    # next terms computed rather than passed in
+    "array of NormalGH for quadrature"
+    quad_nodes
+
+    "array of final functions to integrate over"
+    fused_funs
+end    
+
+"Experiment constructor"
+function Experiment(npoints; 
+        funs=[identity, (z)->exp(0.4*z^2), (z)->z*exp(0.4*z^2)],
+        condY=(z)->logistic(z-2))
+    quad_nodes = [NormalGH(n) for n=npoints]
+    fused = [z -> f(z)*condY(z) for f = funs]
+    return Experiment(npoints, funs, condY, quad_nodes, fused)
+end
+
+struct ExperimentResult
+    "specification of Experiment"
+    experiment::Experiment
+    "rows are experiment.funs and columns experiment.npoints
+    individual cells are computed quadrature values"
+    result
+end
+
+function compute(experiment::Experiment)
+    nfun = length(experiment.funs)
+    nquad = length(experiment.npoints)
+    res = Matrix(undef, nfun, nquad)
+    for i0 = 1:nfun
+        for i1 = 1:nquad
+            res[i0, i1] = experiment.quad_nodes[i1](experiment.fused_funs[i0])
+        end
+    end
+    return ExperimentResult(experiment, res)
+end
+
+function test()
+    expt = Experiment([1, 3, 5, 7, 8, 9, 10, 15, 20])
+    r = compute(expt)
+    display(r.result)
+    return r
+end
+test()
 end

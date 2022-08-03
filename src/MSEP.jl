@@ -4,6 +4,7 @@ using Distributions
 using FastGaussQuadrature
 using LinearAlgebra
 using NamedArrays
+using QuadGK
 using StatsFuns
 
 # NormalGH is a struct and function name.  Not sure what the next line does.
@@ -49,6 +50,36 @@ function (p::NormalGH)(f)
 end
 
 """
+Integrate using an adaptive Gauss-Kronrod method.
+Assume the function passed in will be multiplied by
+a standard normal density.
+
+This is set up to use a specified order of integration,
+which is almost completely undocumented.  It defaults to 7 and
+the docs say it should be proportional to the desired precision.
+
+Note that quadGK returns (estimate, error estimate)
+"""
+struct NormalAGK
+    order::Int
+    μ
+    σ
+    normal
+end
+
+# constructor
+function NormalAGK(; μ=0.0, σ=1.0, order::Int = 7)
+    return NormalAGK(order, μ, σ, Normal(μ, σ))
+end
+
+"evaluate the integral"
+function (nagk::NormalAGK)(f)
+    value, err = quadgk(z->f(z)*pdf(nagk.normal, z), -Inf, Inf, 
+                        order=nagk.order, atol=sqrt(eps()))
+    return value
+end
+
+"""
 conditional likelihood z|Y=1
 for a single outcome with constant term k
 The variance of the random effects is 1.
@@ -86,6 +117,25 @@ function Experiment(npoints;
     return Experiment(npoints, funs, condY, quad_nodes, fused)
 end
 
+function Experiment2(npoints; 
+    funs=[z->exp(0.4*z^2), z->z*exp(0.4*z^2)],#[z->1.0, identity, z->exp(0.4*z^2), z->z*exp(0.4*z^2)],
+    condY=(z)->logistic(z-2))
+    quad_nodes = [NormalAGK(order=n) for n=npoints]
+    function maker(f)
+        function inner(z)
+            print("  @", z)
+            a=f(z)
+            print(" f(z)= ", a)
+            b = condY(z)
+            print(", Y|z= ", b)
+            r = a*b
+            println(" -> ", r)
+            return r
+        end
+    end
+    fused = [maker(f) for f = funs]
+    return Experiment(npoints, funs, condY, quad_nodes, fused)
+end
 struct ExperimentResult
     "specification of Experiment"
     experiment::Experiment
@@ -99,12 +149,15 @@ function compute(experiment::Experiment)
     nquad = length(experiment.npoints)
     # following seems to be only allowed call with type as first argument
     res = NamedArray(Real, nfun+1, nquad)
-    setnames!(res, ["1", "z", "w", "wz", "zhat"], 1)
+    #setnames!(res, ["1", "z", "w", "wz", "zhat"], 1)
+    setnames!(res, ["w", "wz", "zhat"], 1)
     setnames!(res, string.(experiment.npoints), 2)
     setdimnames!(res, "f", 1)
     setdimnames!(res, "npoints", 2)
     for i1 = 1:nquad
+        println("order ", experiment.npoints[i1])
         for i0 = 1:nfun
+            println("  Function # ", i0)
             res[i0, i1] = experiment.quad_nodes[i1](experiment.fused_funs[i0])
         end
         res[nfun+1, i1] = res["wz", i1]/res["w", i1]
@@ -113,7 +166,7 @@ function compute(experiment::Experiment)
 end
 
 function test()
-    expt = Experiment([1, 3, 5, 7, 8, 9, 10, 15, 20])
+    expt = Experiment2([ 5, 7]) # [1, 3, 5, 7, 8, 9, 10, 15, 20])
     r = compute(expt)
     display(r.result)
     return r

@@ -80,12 +80,42 @@ function (nagk::NormalAGK)(f)
 end
 
 """
+This evaluator assumes the density function is already built in
+to the functions to be evaluated, or that you are just doing
+a regular Adaptive Gauss Kronrod integral over the whole Real
+line
+"""
+struct AgnosticAGK
+    order
+end
+
+function (aagk::AgnosticAGK)(f)
+    value, err = quadgk(f, -Inf, Inf, order = aagk.order,
+        atol=sqrt(eps()))
+    return value
+end
+
+"""
 conditional likelihood z|Y=1
 for a single outcome with constant term k
 The variance of the random effects is 1.
 """
 function condzy1(z, k)
     return logistic(k+z)*pdf(Normal(), z)
+end
+
+"""
+Returns a function which, when evaluated at z, gives
+the product of weight (defined using zSQ with parameter λ) and
+the standard normal density.
+
+The hope is that considering them together will avoid overflow.
+"""
+function makezSQwd(λ)
+    @assert λ < 0.5
+    function(z)
+        invsqrt2π*exp(-0.5*(1.0-2.0*λ)*z^2)
+    end
 end
 
 """
@@ -118,9 +148,9 @@ function Experiment(npoints;
 end
 
 function Experiment2(npoints; 
-    funs=[z->exp(0.4*z^2), z->z*exp(0.4*z^2)],#[z->1.0, identity, z->exp(0.4*z^2), z->z*exp(0.4*z^2)],
-    condY=(z)->logistic(z-2))
-    quad_nodes = [NormalAGK(order=n) for n=npoints]
+    funs = [makezSQwd(0.4), z->z*makezSQwd(0.4)(z)],#[z->1.0, identity, z->exp(0.4*z^2), z->z*exp(0.4*z^2)],
+    condY = z->logistic(z-2))
+    quad_nodes = [AgnosticAGK(n) for n=npoints]
     function maker(f)
         function inner(z)
             print("  @", z)

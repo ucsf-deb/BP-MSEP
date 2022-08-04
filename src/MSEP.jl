@@ -196,7 +196,7 @@ function compute(experiment::Experiment)
 end
 
 function test()
-    expt = Experiment2([ 5, 7]) # [1, 3, 5, 7, 8, 9, 10, 15, 20])
+    expt = Experiment2([ 1, 2, 3]) # [1, 3, 5, 7, 8, 9, 10, 15, 20])
     r = compute(expt)
     display(r.result)
     return r

@@ -1,6 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
+julia_version = "1.8.1"
 manifest_format = "2.0"
+project_hash = "17410d5dbb8abf62829d8f5d8f2cc90105550358"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -520,7 +522,7 @@ version = "1.0.2"
 
 [[deps.MixedModels]]
 deps = ["Arrow", "DataAPI", "Distributions", "GLM", "JSON3", "LazyArtifacts", "LinearAlgebra", "Markdown", "NLopt", "PooledArrays", "ProgressMeter", "Random", "SparseArrays", "StaticArrays", "Statistics", "StatsBase", "StatsFuns", "StatsModels", "StructTypes", "Tables"]
-path = "/home/ross/.julia/dev/MixedModels"
+git-tree-sha1 = "eb09b8b591d0c2e551ef68c30810fd3d1bb7c946"
 uuid = "ff71e718-51f3-5ec2-a782-8ffcbfa3c316"
 version = "4.7.1"
 

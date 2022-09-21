@@ -1,6 +1,5 @@
 using DataFrames
 using Distributions
-using MixedModels
 using StatsFuns
 
 """

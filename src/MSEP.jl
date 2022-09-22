@@ -1,5 +1,6 @@
 module MSEP
 
+using DataFrames
 using Distributions
 using FastGaussQuadrature
 using LinearAlgebra
@@ -11,11 +12,15 @@ using StatsFuns
 export NormalGH
 # same issue with
 export Experiment
+export MultiLevel
 
+export maker
 # and then there's the function associate with NormalGH instances
 export condzy1
 # other test code
 export Experiment, ExperimentResult, compute, go
+
+include("maker.jl")
 
 """
 Use Gauss-Hermite quadrature to evaluate a function.
@@ -46,7 +51,7 @@ end
 Integrate with respect to normal density.
 """
 function (p::NormalGH)(f)
-    return dot(p.w, f.(p.μ.+sqrt2*p.σ*p.x))  
+    return dot(p.w, f.(p.μ .+ sqrt2 * p.σ * p.x))
 end
 
 """
@@ -68,14 +73,14 @@ struct NormalAGK
 end
 
 # constructor
-function NormalAGK(; μ=0.0, σ=1.0, order::Int = 7)
+function NormalAGK(; μ=0.0, σ=1.0, order::Int=7)
     return NormalAGK(order, μ, σ, Normal(μ, σ))
 end
 
 "evaluate the integral"
 function (nagk::NormalAGK)(f)
-    value, err = quadgk(z->f(z)*pdf(nagk.normal, z), -Inf, Inf, 
-                        order=nagk.order, atol=sqrt(eps()))
+    value, err = quadgk(z -> f(z) * pdf(nagk.normal, z), -Inf, Inf,
+        order=nagk.order, atol=sqrt(eps()))
     return value
 end
 
@@ -90,7 +95,7 @@ struct AgnosticAGK
 end
 
 function (aagk::AgnosticAGK)(f)
-    value, err = quadgk(f, -Inf, Inf, order = aagk.order,
+    value, err = quadgk(f, -Inf, Inf, order=aagk.order,
         atol=sqrt(eps()))
     return value
 end
@@ -101,7 +106,7 @@ for a single outcome with constant term k
 The variance of the random effects is 1.
 """
 function condzy1(z, k)
-    return logistic(k+z)*pdf(Normal(), z)
+    return logistic(k + z) * pdf(Normal(), z)
 end
 
 """
@@ -113,8 +118,8 @@ The hope is that considering them together will avoid overflow.
 """
 function makezSQwd(λ)
     @assert λ < 0.5
-    function(z)
-        invsqrt2π*exp(-0.5*(1.0-2.0*λ)*z^2)
+    function (z)
+        invsqrt2π * exp(-0.5 * (1.0 - 2.0 * λ) * z^2)
     end
 end
 
@@ -136,29 +141,29 @@ struct Experiment
 
     "array of final functions to integrate over"
     fused_funs
-end    
+end
 
 "Experiment constructor"
-function Experiment(npoints; 
-        funs=[z->1.0, identity, (z)->exp(0.4*z^2), (z)->z*exp(0.4*z^2)],
-        condY=(z)->logistic(z-2))
-    quad_nodes = [NormalGH(n) for n=npoints]
-    fused = [z -> f(z)*condY(z) for f = funs]
+function Experiment(npoints;
+    funs=[z -> 1.0, identity, (z) -> exp(0.4 * z^2), (z) -> z * exp(0.4 * z^2)],
+    condY=(z) -> logistic(z - 2))
+    quad_nodes = [NormalGH(n) for n = npoints]
+    fused = [z -> f(z) * condY(z) for f = funs]
     return Experiment(npoints, funs, condY, quad_nodes, fused)
 end
 
-function Experiment2(npoints; 
-    funs = [makezSQwd(0.4), z->z*makezSQwd(0.4)(z)],#[z->1.0, identity, z->exp(0.4*z^2), z->z*exp(0.4*z^2)],
-    condY = z->logistic(z-2))
-    quad_nodes = [AgnosticAGK(n) for n=npoints]
+function Experiment2(npoints;
+    funs=[makezSQwd(0.4), z -> z * makezSQwd(0.4)(z)],#[z->1.0, identity, z->exp(0.4*z^2), z->z*exp(0.4*z^2)],
+    condY=z -> logistic(z - 2))
+    quad_nodes = [AgnosticAGK(n) for n = npoints]
     function maker(f)
         function inner(z)
             print("  @", z)
-            a=f(z)
+            a = f(z)
             print(" f(z)= ", a)
             b = condY(z)
             print(", Y|z= ", b)
-            r = a*b
+            r = a * b
             println(" -> ", r)
             return r
         end
@@ -178,7 +183,7 @@ function compute(experiment::Experiment)
     nfun = length(experiment.funs)
     nquad = length(experiment.npoints)
     # following seems to be only allowed call with type as first argument
-    res = NamedArray(Real, nfun+1, nquad)
+    res = NamedArray(Real, nfun + 1, nquad)
     #setnames!(res, ["1", "z", "w", "wz", "zhat"], 1)
     setnames!(res, ["w", "wz", "zhat"], 1)
     setnames!(res, string.(experiment.npoints), 2)
@@ -190,16 +195,16 @@ function compute(experiment::Experiment)
             println("  Function # ", i0)
             res[i0, i1] = experiment.quad_nodes[i1](experiment.fused_funs[i0])
         end
-        res[nfun+1, i1] = res["wz", i1]/res["w", i1]
+        res[nfun+1, i1] = res["wz", i1] / res["w", i1]
     end
     return ExperimentResult(experiment, res)
 end
 
 function test()
-    expt = Experiment2([ 1, 2, 3]) # [1, 3, 5, 7, 8, 9, 10, 15, 20])
+    expt = Experiment2([1, 2, 3]) # [1, 3, 5, 7, 8, 9, 10, 15, 20])
     r = compute(expt)
     display(r.result)
     return r
 end
-test()
+#test()
 end

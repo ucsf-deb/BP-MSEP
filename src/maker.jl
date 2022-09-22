@@ -1,6 +1,3 @@
-using DataFrames
-using Distributions
-using StatsFuns
 
 """
 MultiLevel holds 2 DataFrames, one with individuals
@@ -62,5 +59,4 @@ function maker(nclusters=3, nclustersize=4, k=-2.0, σ=1.0)::MultiLevel
     df.Y = rand.(Bernoulli.(df.p))
     return MultiLevel(groupby(df, :cid), clusters)
 end
-data = maker()
-print(data)
+

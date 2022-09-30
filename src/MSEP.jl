@@ -14,13 +14,19 @@ export NormalGH
 export Experiment
 export MultiLevel
 
+export AgnosticAGK
+
 export maker
 # and then there's the function associate with NormalGH instances
 export condzy1
 # other test code
 export Experiment, ExperimentResult, compute, go
 
-include("maker.jl")
+export LogisticSimpleEvaluator, Evaluator
+export zSQdensity
+export simulate
+
+# includes at bottom
 
 """
 Use Gauss-Hermite quadrature to evaluate a function.
@@ -94,9 +100,9 @@ struct AgnosticAGK
     order
 end
 
-function (aagk::AgnosticAGK)(f)
+function (aagk::AgnosticAGK)(f; segbuf=nothing)
     value, err = quadgk(f, -Inf, Inf, order=aagk.order,
-        atol=sqrt(eps()))
+        atol=sqrt(eps()), segbuf=segbuf)
     return value
 end
 
@@ -206,5 +212,9 @@ function test()
     display(r.result)
     return r
 end
-#test()
+
+# evaluator needs some of the classes defined above
+include("maker.jl")
+include("evaluator.jl")
+
 end

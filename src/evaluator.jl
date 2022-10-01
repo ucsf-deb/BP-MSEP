@@ -207,15 +207,17 @@ end
 
 "Runs many simulations and returns the cluster level results"
 function bigsim(nouter=200; nclusters=500, nclustersize=7, k=-2.0, σ=1.0, λ=0.4, integration_order=5)::DataFrame
-    results = nothing  # assure local scope
+    totClusters = nouter*nclusters
+    # Pre-allocate full size to reduce memory operations
+    results = DataFrame(z=zeros(totClusters), zhat=zeros(totClusters), ∑Y=fill(0x0000, totClusters),
+        iSim=repeat(1:nouter, inner=nclusters), cid=repeat(1:nclusters, nouter), n=nclustersize)
+    # values we need to fill in
+    copy_vals = [:z, :zhat, :∑Y]
+    ir = 1 # current insertion position in results
     for iSim in 1:nouter
         clust::DataFrame = simulate(nclusters = nclusters, nclustersize = nclustersize, k = k, σ = σ).clusters
-        clust.iSim .= iSim
-        if iSim == 1
-            results = clust
-        else
-            append!(results, clust)
-        end
+        results[ir:(ir+nclusters-1), copy_vals] = clust[!, copy_vals]
+        ir += nclusters
     end
     return results
 end

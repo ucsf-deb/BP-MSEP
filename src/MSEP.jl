@@ -24,7 +24,7 @@ export Experiment, ExperimentResult, compute, go
 
 export LogisticSimpleEvaluator, Evaluator
 export zSQdensity
-export simulate
+export simulate, bigsim
 
 # includes at bottom
 

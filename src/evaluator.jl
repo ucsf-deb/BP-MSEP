@@ -204,3 +204,18 @@ function simulate(; nclusters=3, nclustersize=4, k=-2.0, σ=1.0, λ=0.4, integra
 
     return ml
 end
+
+"Runs many simulations and returns the cluster level results"
+function bigsim(nouter=200; nclusters=500, nclustersize=7, k=-2.0, σ=1.0, λ=0.4, integration_order=5)::DataFrame
+    results = nothing  # assure local scope
+    for iSim in 1:nouter
+        clust::DataFrame = simulate(nclusters = nclusters, nclustersize = nclustersize, k = k, σ = σ).clusters
+        clust.iSim .= iSim
+        if iSim == 1
+            results = clust
+        else
+            append!(results, clust)
+        end
+    end
+    return results
+end

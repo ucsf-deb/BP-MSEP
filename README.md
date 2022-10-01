@@ -1,6 +1,6 @@
 MSEP Simulation
 
-This simulates the performance of a mixed logistic model with weighted predictors to get $z_{\tt BP}$.  We use numerical integration to evaluate the predictor given a simulated set of $Y$ data.
+This simulates the performance of a mixed logistic model with weighted predictors to get $z_{\tt BP}$.  We use numerical integration to evaluate the predictor given a simulated set of $Y$ data. `bigsum()` is the top-level call; it's in `evaluator.jl`.
 
 `dev`ed the `MixedModels` package to see what it does.  It will be under `~/.julia/dev/`.
 Added `DataFrames`
@@ -17,3 +17,11 @@ Required adding `RelocatableFolders` to base `1.8` environment; putting it in `M
 None of this makes much difference in the time it takes between when I press "Run and Debug" in VSCode and when it gets to the first breakpoint in `harness.jl`: 60-70s
 
 But using `@enter data=maker()` in the REPL does make a huge difference difference. After the first time, the startup delay is trivial.  However, `@run data=maker()` just causes it to hang.  It even hangs when I ask for help on it.
+
+Packages
+========
+Notes on some late additions to the environment.
+
+Added so Gadfly can output pdf, ps, png, or anything but svg:
+Cairo
+Fontconfig

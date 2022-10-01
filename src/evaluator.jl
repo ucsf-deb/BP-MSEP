@@ -180,7 +180,7 @@ Estimate zhat for each cluster with quadrature.
 Return results.
 """
 function simulate(; nclusters=3, nclustersize=4, k=-2.0, σ=1.0, λ=0.4, integration_order=5)::MultiLevel
-    ml::MultiLevel = maker(nclusters, nclustersize, k, σ)
+    ml::MultiLevel = maker(nclusters = nclusters, nclustersize = nclustersize, k = k, σ = σ)
     ev = LogisticSimpleEvaluator(λ, k, σ, integration_order)
     ml.clusters.zhat .= -100.0 # broadcast to make new columns
     nT = Threads.nthreads()

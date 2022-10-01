@@ -42,7 +42,7 @@ p true probability of success
 Output individuals has one row per subject in anticipation of subject-level
 variables
 """
-function maker(nclusters=3, nclustersize=4, k=-2.0, σ=1.0)::MultiLevel
+function maker(; nclusters=3, nclustersize=4, k=-2.0, σ=1.0)::MultiLevel
     zcluster = rand(Normal(0.0, 1.0), nclusters)
     clusters = DataFrame(z=zcluster, cid=1:nclusters, n=nclustersize)
     # df below uses clusters.cid in the constructor.  Goal is to preserve
@@ -66,6 +66,11 @@ function maker(nclusters=3, nclustersize=4, k=-2.0, σ=1.0)::MultiLevel
     df.η = k .+ σ .* df.z
     df.p = logistic.(df.η)
     df.Y = rand.(Bernoulli.(df.p))
+
+    # compute total successes in cluster
+    # this assumes order unchanged, which may not be guaranteed
+    clusters.∑Y = combine(groupby(df, :cid), :Y => sum => :∑Y)[:, :∑Y]
+
     return MultiLevel(df, clusters)
 end
 

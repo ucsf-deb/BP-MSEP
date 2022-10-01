@@ -2,6 +2,7 @@
 # little driver to check code in module
 
 using DataFrames, Dates, MSEP, Statistics
+Threads.nthreads()
 now()
 @time x = simulate(nclusters=8000, nclustersize=7);
 

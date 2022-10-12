@@ -21,6 +21,8 @@ now() # check if time is wall-clock time
 now()
 groups= groupby(clust, :∑Y)
 combine(groups, :zhat=>mean=>:zSQ, :zhat=>std=>:zSQ_sd)
+println("MSEP over all clusters = ", msep(clust))
+println("For true z > 1.96, MSEP = ", msep(clust, 1.96))
 
 p = plot(clust, x=:z, y=:zhat, Geom.histogram2d(ybincount=30, xbincount=50), Geom.smooth())
 p |> PDF("sim_simple8.pdf")

@@ -24,7 +24,7 @@ export Experiment, ExperimentResult, compute, go
 
 export LogisticSimpleEvaluator, Evaluator
 export zSQdensity
-export simulate, bigsim
+export simulate, bigsim, msep
 
 # includes at bottom
 
@@ -216,5 +216,6 @@ end
 # evaluator needs some of the classes defined above
 include("maker.jl")
 include("evaluator.jl")
+include("post.jl")
 
 end

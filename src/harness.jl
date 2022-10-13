@@ -17,7 +17,7 @@ combine(groupby(x.clusters, :∑Y), :zhat=>mean, :zhat=>std)
 plot(x.clusters, x=:z, y=:zhat, Geom.histogram2d(ybincount=30, xbincount=50), Geom.smooth())
 
 now() # check if time is wall-clock time
-@time clust = bigsim(50; nclusters=200, nclustersize=7, k=-1.0, σ=1.5, λ=0.4, integration_order=5)
+@time clust = bigsim(200; nclusters=200, nclustersize=7, k=-1.0, σ=1.5, λ=0.4, integration_order=5)
 now()
 groups= groupby(clust, :∑Y)
 combine(groups, :zhat=>mean=>:zSQ, :zhat=>std=>:zSQ_sd)

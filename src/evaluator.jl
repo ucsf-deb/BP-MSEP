@@ -49,7 +49,7 @@ function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
 end
 
 "enumerate desired calculation for WorkArea"
-@enum Objective justZ justW WZ
+@enum Objective justZ justW WZ just1
 
 """
 Working data for a particular thread.
@@ -112,7 +112,7 @@ function zSQdensity(z::Float64, wa::WorkArea)
     the first term.
 
     =#
-    if objective == justZ
+    if objective == justZ || objective == just1
         # if this doesn't work may want Gauss-Hermite quadrature
         d = exp(-0.5 * z^2)
     else
@@ -131,7 +131,7 @@ function zSQdensity(z::Float64, wa::WorkArea)
         end
 
     end
-    if objective != justW
+    if objective == justZ || objective == WZ
         d *= z
     end
     return d
@@ -168,10 +168,12 @@ function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
         den = ev.integrator(f, segbuf=wa.segs)
         wa.objective = justZ
         zsimp = ev.integrator(f, segbuf=wa.segs)
+        wa.objective = just1
+        den1 = ev.integrator(f, segbuf=wa.segs)
         # DataFrame is thread-safe for reading, but not writing
         lock(ml.cluster_lock) do
             ml.clusters.zhat[iCluster] = num/den
-            ml.clusters.zsimp[iCluster] = zsimp
+            ml.clusters.zsimp[iCluster] = zsimp/den1
         end
     end
 end

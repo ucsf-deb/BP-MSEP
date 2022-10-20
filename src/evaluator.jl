@@ -32,7 +32,7 @@ mutable struct  LogisticSimpleEvaluator <: Evaluator
     const σ
 
     "order for the numerical integration"
-    const integration_order
+    const integration_order::Integer
 
     ## The constructor is responsible for the following
     "f(z, workarea)= w(z)*conditional density*normal density
@@ -47,6 +47,9 @@ end
 function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
     LogisticSimpleEvaluator(λ, k, σ, integration_order, zSQdensity, AgnosticAGK(integration_order))
 end
+
+"enumerate desired calculation for WorkArea"
+@enum Objective justZ justW WZ
 
 """
 Working data for a particular thread.
@@ -73,9 +76,8 @@ mutable struct  WorkArea
     segs
     
     # The following are set on each evaluation
-    "withZ dirty trick to determine whether to evaluate 
-    the basic f(z) above or z*f(z)"
-    withZ::Bool
+    "dirty trick to determine whether to integrate over z, w, or wz"
+    objective::Objective
 
     "first row index of cluster of current interest"
     i_start::UInt
@@ -88,16 +90,18 @@ mutable struct  WorkArea
 
 end
 
-"evaluate either w or wz * density  for a single cluster"
-function zSQdensity(z, wa::WorkArea)
+"evaluate (z, w or wz) * density  for a single cluster"
+function zSQdensity(z::Float64, wa::WorkArea)
     ev::LogisticSimpleEvaluator = wa.evaluator
     dat::DataFrame = wa.dat
-    withZ::Bool = wa.withZ
+    objective::Objective = wa.objective
 
     #= 
-    The initial d is the product of weight (defined using zSQ with parameter λ) and
+    The initial d is generally the product of weight (defined using zSQ with parameter λ) and
     the standard normal density. By combining them we can avoid many
     overflow problems.
+
+    The exception is for objective == justZ.  In this case, there is no weighting.
 
     The constant multiplier invsqrt2π for the normal density is unnecessary to the final
     result of the larger computation.  Since we are omitting the Bayes denominator
@@ -108,11 +112,17 @@ function zSQdensity(z, wa::WorkArea)
     the first term.
 
     =#
-    d = exp(-0.5 * (1.0 - 2.0 * ev.λ) * z^2)
+    if objective == justZ
+        # if this doesn't work may want Gauss-Hermite quadrature
+        d = exp(-0.5 * z^2)
+    else
+        d = exp(-0.5 * (1.0 - 2.0 * ev.λ) * z^2)
+    end
     for i in wa.i_start:wa.i_end
         Y = dat.Y[i]
 
         # conditional Y=1 | z
+        # next line gets most of the CPU time
         cd = logistic(z*ev.σ + ev.k)
         if Y
             d *= cd
@@ -121,7 +131,7 @@ function zSQdensity(z, wa::WorkArea)
         end
 
     end
-    if withZ
+    if objective != justW
         d *= z
     end
     return d
@@ -141,7 +151,7 @@ ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
 function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
-    wa = WorkArea(ml.individuals, ev, work(ev), false, 0, 0, 0)
+    wa = WorkArea(ml.individuals, ev, work(ev), WZ, 0, 0, 0)
     f(z) = ev.f(z, wa)
     # g(z) = z*f(z) might be faster than the withZ trick
     while true
@@ -152,13 +162,16 @@ function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
         end
         wa.i_start = i0
         wa.i_end = i1
-        wa.withZ = true
+        wa.objective = WZ
         num = ev.integrator(f, segbuf=wa.segs)
-        wa.withZ = false
+        wa.objective = justW
         den = ev.integrator(f, segbuf=wa.segs)
+        wa.objective = justZ
+        zsimp = ev.integrator(f, segbuf=wa.segs)
         # DataFrame is thread-safe for reading, but not writing
         lock(ml.cluster_lock) do
             ml.clusters.zhat[iCluster] = num/den
+            ml.clusters.zsimp[iCluster] = zsimp
         end
     end
 end
@@ -183,6 +196,7 @@ function simulate(; nclusters=3, nclustersize=4, k=-2.0, σ=1.0, λ=0.4, integra
     ml::MultiLevel = maker(nclusters = nclusters, nclustersize = nclustersize, k = k, σ = σ)
     ev = LogisticSimpleEvaluator(λ, k, σ, integration_order)
     ml.clusters.zhat .= -100.0 # broadcast to make new columns
+    ml.clusters.zsimp .= -100.0 # broadcast to make new columns
     nT = Threads.nthreads()
     command = Channel(2*Threads.nthreads())
     # launch workers
@@ -205,14 +219,24 @@ function simulate(; nclusters=3, nclustersize=4, k=-2.0, σ=1.0, λ=0.4, integra
     return ml
 end
 
-"Runs many simulations and returns the cluster level results"
+"""Runs many simulations and returns the cluster level results
+Results columns
+z   true z of cluster
+zhat the zSQ estimator from E(wz)/E(z)
+∑Y  total successes in cluster
+zsimp  Posterior mean, no weighting
+iSim    simulation number
+cid     cluster id (only unique within iSim)
+n       cluster size
+"""
 function bigsim(nouter=200; nclusters=500, nclustersize=7, k=-2.0, σ=1.0, λ=0.4, integration_order=5)::DataFrame
     totClusters = nouter*nclusters
     # Pre-allocate full size to reduce memory operations
     results = DataFrame(z=zeros(totClusters), zhat=zeros(totClusters), ∑Y=fill(0x0000, totClusters),
+        zsimp=zeros(totClusters),
         iSim=repeat(1:nouter, inner=nclusters), cid=repeat(1:nclusters, nouter), n=nclustersize)
     # values we need to fill in
-    copy_vals = [:z, :zhat, :∑Y]
+    copy_vals = [:z, :zhat, :∑Y,  :zsimp]
     ir = 1 # current insertion position in results
     for iSim in 1:nouter
         clust::DataFrame = simulate(nclusters = nclusters, nclustersize = nclustersize, k = k, σ = σ).clusters

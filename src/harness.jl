@@ -25,6 +25,7 @@ combine(groups, :zhat=>mean=>:zSQ, :zhat=>std=>:zSQ_sd, :zsimp=>mean=>:zsimp,
 println("MSEP over all clusters = ", msep(clust))
 println("For true z > 1.96, MSEP = ", msep(clust, 1.96))
 
+
 p = plot(clust, x=:z, y=:zhat, Geom.histogram2d(ybincount=30, xbincount=50), Geom.smooth())
 p |> PDF("sim_simple8.pdf")
 
@@ -54,3 +55,14 @@ function testNoThread()
 end
 
 testNoThread()
+
+errs, errsBP = bigbigsim(4; nclusters=500);
+println("zSQ (λ =0.4) MSEP for |z|>τ")
+println(errs)
+println()
+println("zBP MSEP for |z|>τ")
+println(errsBP)
+names(errs, 1)
+pdat = MSEP.rearrange(errs, errsBP)
+# @enter to debug
+plot(pdat, x=:σ, y=:MSEP, color=:τ, shape=:pred, Scale.color_discrete(), Geom.point, Stat.x_jitter(range=0.4)) |> PDF("MSEP-compare.pdf")

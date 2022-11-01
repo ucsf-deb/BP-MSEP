@@ -65,4 +65,8 @@ println(errsBP)
 names(errs, 1)
 pdat = MSEP.rearrange(errs, errsBP)
 # @enter to debug
-plot(pdat, x=:σ, y=:MSEP, color=:τ, shape=:pred, group=:pred, Scale.color_discrete(), Geom.point, Geom.line, Stat.x_jitter(range=0.4))|> PDF("MSEP-compare.pdf")
+# Stat.x_jitter(range=0.4), at least in the final position
+# jitters the lines but not the points
+# shape=:pred,
+plot(pdat, x=:σ, y=:MSEP, color=:τ, linestyle=:pred, Scale.color_discrete(), Geom.line, Scale.linestyle_discrete(order=[1, 2]))
+|> PDF("MSEP-compare.pdf")

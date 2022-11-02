@@ -56,7 +56,7 @@ end
 
 testNoThread()
 
-errs, errsBP = bigbigsim(4; nclusters=500);
+@time errs, errsBP = bigbigsim(200; nclusters=500);
 println("zSQ (λ =0.4) MSEP for |z|>τ")
 println(errs)
 println()
@@ -68,5 +68,4 @@ pdat = MSEP.rearrange(errs, errsBP)
 # Stat.x_jitter(range=0.4), at least in the final position
 # jitters the lines but not the points
 # shape=:pred,
-plot(pdat, x=:σ, y=:MSEP, color=:τ, linestyle=:pred, Scale.color_discrete(), Geom.line, Scale.linestyle_discrete(order=[1, 2]))
-|> PDF("MSEP-compare.pdf")
+plot(pdat, x=:σ, y=:MSEP, color=:τ, linestyle=:pred, Scale.color_discrete(), Geom.line, Scale.linestyle_discrete(order=[1, 2])) |> PDF("MSEP-compare.pdf")

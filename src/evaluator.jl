@@ -1,13 +1,10 @@
 
 """
-Evaluators compute a predictor for a single cluster
+Evaluators compute a predictor for a single cluster.  Generally the value is
+only good up to a constant of proportionality.  Some evaluators can be asked
+to compute more than one kind of value, e.g., w*z or w alone.
 
-Evaluators, when instantiated, are functions called with a single argument
-a SubDataFrame, i.e., data for a single cluster.  The return ``hat z`` for that cluster.
-Typically this is done by evaluating ``E(wz)/E(w)`` where ``w`` is a weighting function and
-``z`` is the random variable of interest.  And typically that is done numerically.
-
-Typically and Evaluator will include
+Typically an Evaluator will include
    - a definition of the weight function
    - the underlying density of ``z``, usually std normal
    - the conditional density of the outcomes given the data
@@ -17,8 +14,7 @@ Typically and Evaluator will include
 abstract type Evaluator end
 """
 Evaluates data as produced by `maker()` with a simple mixed logistic model
-We only use `Y` from the SubDataFrame, a binary indicator, since it has
-no observed covariates.
+We only use `Y`, a binary indicator, since the model has no observed covariates.
 """
 mutable struct  LogisticSimpleEvaluator <: Evaluator
     "parameter for weight function"
@@ -76,7 +72,7 @@ mutable struct  WorkArea
     segs
     
     # The following are set on each evaluation
-    "dirty trick to determine whether to integrate over z, w, or wz"
+    "dirty trick to determine whether to integrate over 1, z, w, or wz"
     objective::Objective
 
     "first row index of cluster of current interest"

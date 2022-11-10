@@ -134,6 +134,43 @@ function zSQdensity(z::Float64, wa::WorkArea)
 end
 
 """
+returns a function fDensity(z, wa) where weight is given by
+the function wt(z, λ) which will be evaluated
+inside the exponential.
+"""
+function wDensity(wt )
+    return function(z::Float64, wa::WorkArea)
+        ev::LogisticSimpleEvaluator = wa.evaluator
+        dat::DataFrame = wa.dat
+        objective::Objective = wa.objective
+
+        if objective == justZ || objective == just1
+            # if this doesn't work may want Gauss-Hermite quadrature
+            d = exp(-0.5 * z^2)
+        else
+            d = exp(-0.5 * z^2 + wt(z, ev.λ))
+        end
+        for i in wa.i_start:wa.i_end
+            Y = dat.Y[i]
+
+            # conditional Y=1 | z
+            # next line gets most of the CPU time
+            cd = logistic(z*ev.σ + ev.k)
+            if Y
+                d *= cd
+            else
+                d *= (1.0-cd)
+            end
+
+        end
+        if objective == justZ || objective == WZ
+            d *= z
+        end
+        return d
+    end
+end
+
+"""
 Defines a computational worker thread
 
 It receives commands through channel.  Those commands are
@@ -189,10 +226,17 @@ end
 Create one simulated dataset.
 Estimate zhat for each cluster with quadrature.
 Return results.
+
+This uses the default zSQ weighting scheme.
 """
 function simulate(; nclusters=3, nclustersize=4, k=-2.0, σ=1.0, λ=0.4, integration_order=5)::MultiLevel
-    ml::MultiLevel = maker(nclusters = nclusters, nclustersize = nclustersize, k = k, σ = σ)
     ev = LogisticSimpleEvaluator(λ, k, σ, integration_order)
+    simulate(ev; nclusters=nclusters, nclustersize=nclustersize)
+end
+
+# permits more general weighting and quadrature options
+function simulate(ev::LogisticSimpleEvaluator; nclusters=3, nclustersize=4)
+    ml::MultiLevel = maker(nclusters = nclusters, nclustersize = nclustersize, k = ev.k, σ = ev.σ)
     ml.clusters.zhat .= -100.0 # broadcast to make new columns
     ml.clusters.zsimp .= -100.0 # broadcast to make new columns
     nT = Threads.nthreads()
@@ -238,6 +282,23 @@ function bigsim(nouter=200; nclusters=500, nclustersize=7, k=-2.0, σ=1.0, λ=0.
     ir = 1 # current insertion position in results
     for iSim in 1:nouter
         clust::DataFrame = simulate(nclusters = nclusters, nclustersize = nclustersize, k = k, σ = σ).clusters
+        results[ir:(ir+nclusters-1), copy_vals] = clust[!, copy_vals]
+        ir += nclusters
+    end
+    return results
+end
+
+function bigsim(ev::LogisticSimpleEvaluator, nouter=200 ; nclusters=500, nclustersize=7)
+    totClusters = nouter*nclusters
+    # Pre-allocate full size to reduce memory operations
+    results = DataFrame(z=zeros(totClusters), zhat=zeros(totClusters), ∑Y=fill(0x0000, totClusters),
+        zsimp=zeros(totClusters),
+        iSim=repeat(1:nouter, inner=nclusters), cid=repeat(1:nclusters, nouter), n=nclustersize)
+    # values we need to fill in
+    copy_vals = [:z, :zhat, :∑Y,  :zsimp]
+    ir = 1 # current insertion position in results
+    for iSim in 1:nouter
+        clust::DataFrame = simulate(ev, nclusters = nclusters, nclustersize = nclustersize).clusters
         results[ir:(ir+nclusters-1), copy_vals] = clust[!, copy_vals]
         ir += nclusters
     end

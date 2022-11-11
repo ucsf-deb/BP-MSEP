@@ -25,3 +25,39 @@ Notes on some late additions to the environment.
 Added so Gadfly can output pdf, ps, png, or anything but svg:
 Cairo
 Fontconfig
+
+
+To Do
+=====
+- [ ] Evaluator should get data to describe the estimator and functions to use the description.
+  - [ ] Short name suitable for use as a variable, possibly returning a Symbol
+  - [ ] Augmented name for use as a variable, e.g., zSQ_sd
+  - [ ] longer descriptive text with more details, like $\lambda$ or how integrated.
+  - [ ] unclear what the relation should be to contained density function and integrator
+- [ ] Use those new naming functions in place of hardcoded names currently found in
+  - [ ]  `harness.jl`
+  - [ ]  possibly replacing zhat in `bigsim()` of `evaluator.jl`
+  - [ ]  `bigbigsim.jl` various functions
+- [ ] extend `bigbigsim()` to pass my own evaluator
+  - [ ] complexity: can't just pass in evaluator since `bigbigsim()` iterates over some of the parameters of the evaluator, specifically $\sigma$.
+  - [ ] could pass in a function that builds the evaluator
+  - [ ] or change fields in evaluator to be mutable
+  - [ ] or take the field out of the evaluator, but perhaps pass it in
+- [ ] How does $\sigma \neq 1$ interact with $R$?
+- [ ] Parameter duplication.  E.g., the original `simulate()` function in `evaluator.jl` has `k` and `σ` as parameters even those are also in the `Evaluator`.  Though, in fairness, that particular function constructs the evaluator.
+- [ ] Same function, different keyword arguments, e.g., the 2 methods for `simulate()`.
+  - [ ] Is that legal?
+  - [ ] Do both methods end up with the union of all keyword arguments?
+- [x] Method dispatch ignores keyword arguments.
+- [ ] How to test it's actually working?
+- [ ] Is the doubly conditioned MSEP always $> \tau-z_{FX}$ when $z_{FX}<\tau$?  Logically, it seems it should be.
+- [ ] Build evaluator for $z_{CT}$.  Non-standard because weight can't go inside exponential.
+- [ ] Conduct full set of simulations Chuck wants.
+- [ ] Consider how best to present the results.
+- [ ] Clear out old/obsolete code, esp from `MSEP.jl` which should be just the master switchboard.
+- [ ] Why was I unable to debug into the evaluation of the likelihood?  That is, I put a breakpoint in the inner part of the density evaluation, but it never stopped there even when using `@enter`.
+- [ ] How might this be integrated into choosing optimal values for $\lambda$?
+- [ ] How might this work tuning both confidence interval $\delta$ and $\lambda$ at once?
+- [ ] Port to R.
+- [ ] Use framework to get estimates of actual variability of estimates for given true $z$ or observed $z_{FX}$.
+  

@@ -43,6 +43,8 @@ To Do
   - [x] could pass in a function that builds the evaluator
   - [ ] or change fields in evaluator to be mutable
   - [ ] or take the field out of the evaluator, but perhaps pass it in
+- [ ] syncronize random numbers across different scenarios
+- [ ] try some large cluster sizes
 - [ ] How does $\sigma \neq 1$ interact with $R$?
 - [ ] Parameter duplication.  E.g., the original `simulate()` function in `evaluator.jl` has `k` and `σ` as parameters even those are also in the `Evaluator`.  Though, in fairness, that particular function constructs the evaluator.
 - [ ] Same function, different keyword arguments, e.g., the 2 methods for `simulate()`.

@@ -70,7 +70,7 @@ end
 
 function make_zAS_generator(; λ=1.6, k=-1.0, order=5)
     function (σ)
-        LogisticSimpleEvaluator(λ, k, σ, order, wDensity((z, λ)-> λ*z), "zA", 
+        LogisticSimpleEvaluator(λ, k, σ, order, wDensity((z, λ)-> λ*z), "zAS", 
         AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
     end
 end

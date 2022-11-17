@@ -44,6 +44,8 @@ To Do
   - [ ] or change fields in evaluator to be mutable
   - [ ] or take the field out of the evaluator, but perhaps pass it in
 - [ ] syncronize random numbers across different scenarios
+- [ ] don't necessarily need to compute zBP on each simulation
+- [ ] reduce the ~1/2 time spent doing gc
 - [ ] try some large cluster sizes
 - [ ] How does $\sigma \neq 1$ interact with $R$?
 - [ ] Parameter duplication.  E.g., the original `simulate()` function in `evaluator.jl` has `k` and `σ` as parameters even those are also in the `Evaluator`.  Though, in fairness, that particular function constructs the evaluator.

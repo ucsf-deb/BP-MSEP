@@ -23,8 +23,8 @@ export condzy1
 export Experiment, ExperimentResult, compute, go
 
 export LogisticSimpleEvaluator, Evaluator
-export zSQdensity, wDensity
-export simulate, bigsim, msep, msepabs, bigbigsim, rearrange
+export zSQdensity, wDensity, make_zAB_generator, make_zAS_generator
+export simulate, bigsim, msep, msepabs, bigbigsim, big3sim, rearrange
 
 # includes at bottom
 

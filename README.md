@@ -30,17 +30,17 @@ Fontconfig
 To Do
 =====
 - [ ] Evaluator should get data to describe the estimator and functions to use the description.
-  - [ ] Short name suitable for use as a variable, possibly returning a Symbol
-  - [ ] Augmented name for use as a variable, e.g., zSQ_sd
-  - [ ] longer descriptive text with more details, like $\lambda$ or how integrated.
+  - [x] Short name suitable for use as a variable, possibly returning a Symbol
+  - [x] Augmented name for use as a variable, e.g., zSQ_sd
+  - [x] longer descriptive text with more details, like $\lambda$ or how integrated.
   - [ ] unclear what the relation should be to contained density function and integrator
 - [ ] Use those new naming functions in place of hardcoded names currently found in
   - [ ]  `harness.jl`
   - [ ]  possibly replacing zhat in `bigsim()` of `evaluator.jl`
   - [ ]  `bigbigsim.jl` various functions
 - [ ] extend `bigbigsim()` to pass my own evaluator
-  - [ ] complexity: can't just pass in evaluator since `bigbigsim()` iterates over some of the parameters of the evaluator, specifically $\sigma$.
-  - [ ] could pass in a function that builds the evaluator
+  - [x] complexity: can't just pass in evaluator since `bigbigsim()` iterates over some of the parameters of the evaluator, specifically $\sigma$.
+  - [x] could pass in a function that builds the evaluator
   - [ ] or change fields in evaluator to be mutable
   - [ ] or take the field out of the evaluator, but perhaps pass it in
 - [ ] How does $\sigma \neq 1$ interact with $R$?

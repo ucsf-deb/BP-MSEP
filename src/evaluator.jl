@@ -35,13 +35,43 @@ mutable struct  LogisticSimpleEvaluator <: Evaluator
     or, if withZ is true, z*w(z)*...."
     const f
 
+    "Short name of primary estimand, e.g., zSQ"
+    const targetName::String
+
     "used to integrate f(z) over the real line"
     const integrator
 
+    "short name of numerical integration method"
+    const integratorName::String
+
+    "fuller description integration method"
+    const integratorDescription::String
 end
 
+"return brief name of primary predictor being evaluated"
+function name(ev::LogisticSimpleEvaluator)::String
+    ev.targetName
+end
+
+"return fuller description of evaluator. full=true gives more detail"
+function description(ev::LogisticSimpleEvaluator, full=false)::String
+    des = "$(ev.targetName)(λ=$(ev.λ), k=$(ev.k), σ=$(ev.σ))"
+    if full
+        return des * ". $(ev.integratorDescription), order $(ev.integration_order)."
+    else
+        return des * " $(ev.integratorName)($(ev.integration_order))"
+    end
+end
+
+"return targetName with suffix"
+function name_with_suffix(suf::String, ev::LogisticSimpleEvaluator)::String
+    return ev.targetName * suf
+end
+
+"Default to zSQ evaluator"
 function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
-    LogisticSimpleEvaluator(λ, k, σ, integration_order, zSQdensity, AgnosticAGK(integration_order))
+    LogisticSimpleEvaluator(λ, k, σ, integration_order, zSQdensity, "zSQ", 
+    AgnosticAGK(integration_order), "AGK", "Adaptive Gauss-Kronrod")
 end
 
 "enumerate desired calculation for WorkArea"

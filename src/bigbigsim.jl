@@ -27,6 +27,53 @@ function bigbigsim(nouter=200; nclusters=500, nclustersize=7, k=-1.0,
     return (errs, errsBP) 
 end
 
+"""big3sim will eventually be bigger than even bigbigsim.
+So it's big^3sim.  But for now the key difference is that it takes as 
+a first argument a function which, when called with σ, produces an Evaluator.
+We assume it is a LogisticSimpleEvaluator, which means it also has k and the 
+order of integration embedded in it.  So those arguments to the previous
+function do not appear here.
+"""
+function big3sim(evaluator_generator, nouter=200; nclusters=500, nclustersize=7,
+    σs=[0.25, 0.5, 0.75, 1.0, 1.25], 
+    τs=[-1.0, 1.5, 2.0, 2.5])
+    errs = NamedArray(Matrix{Float64}(undef, length(σs),  length(τs)),
+        (σs, τs), ("σ","τ"))
+    errsBP = deepcopy(errs)
+    iRow = 1
+    for σ in σs
+        ev = evaluator_generator(σ)
+        clust = bigsim(ev, nouter; nclusters=nclusters, nclustersize=nclustersize)
+        groups= groupby(clust, :∑Y)
+        byY = combine(groups, :zhat=>mean=>name(ev), 
+                        :zhat=>std=>name_with_suffix("_sd", ev),
+                        :zsimp=>mean=>:zsimp,
+                        :zsimp=>std=>:zsimp_sd)
+
+        println("Summary predictors for " * description(ev))
+        println(byY)
+        println()
+        errs[iRow, :] = msepabs(clust, τs)
+        errsBP[iRow, :] = msepabs(clust, τs, :zsimp)
+        iRow += 1
+    end
+    return (errs, errsBP) 
+end
+
+### The functions make the functions the are the first argument above.
+function make_zAB_generator(; λ=1.6, k=-1.0, order=5)
+    function (σ)
+        LogisticSimpleEvaluator(λ, k, σ, order, wDensity((z, λ)-> λ*abs(z)), "zAB", 
+        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    end
+end
+
+function make_zAS_generator(; λ=1.6, k=-1.0, order=5)
+    function (σ)
+        LogisticSimpleEvaluator(λ, k, σ, order, wDensity((z, λ)-> λ*z), "zA", 
+        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    end
+end
 
 """
 Unpack the matrix in errs into the already allocated df

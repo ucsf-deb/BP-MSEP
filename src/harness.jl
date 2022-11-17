@@ -74,3 +74,18 @@ pdat = MSEP.rearrange(errs, errsBP)
 # jitters the lines but not the points
 # shape=:pred,
 plot(pdat, x=:σ, y=:MSEP, color=:τ, linestyle=:pred, Scale.color_discrete(), Geom.line, Scale.linestyle_discrete(order=[1, 2])) |> PDF("MSEP-compare.pdf")
+
+# newer style
+@time errsAB, errsBPAB = big3sim(make_zAB_generator(), 1000; nclusters=400);
+println("zAB (λ = 1.6) MSEP to |z|>τ")
+println(errsAB)
+println()
+println("zBP MSEP for |z|>τ")
+println(errsBPAB)
+
+@time errsAS, errsBPAS = big3sim(make_zAS_generator(), 1000; nclusters=400);
+println("zAS (λ = 1.6) MSEP to |z|>τ")
+println(errsAS)
+println()
+println("zBP MSEP for |z|>τ")
+println(errsBPAS)

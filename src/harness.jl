@@ -83,9 +83,11 @@ println()
 println("zBP MSEP for |z|>τ")
 println(errsBPAB)
 
-@time errsAS, errsBPAS = big3sim(make_zAS_generator(), 1000; nclusters=400);
-println("zAS (λ = 1.6) MSEP to |z|>τ")
+τs = [-Inf, 1.5, 2.0, 2.5]
+τplus = vcat(τs, twoToOne(τs[2:end]))
+@time errsAS, errsBPAS = big3sim(make_zAS_generator(), 1000; nclusters=400, τs = τplus);
+println("zAS (λ = 1.6) MSEP to z >τ")
 println(errsAS)
 println()
-println("zBP MSEP for |z|>τ")
+println("zBP MSEP for z > τ")
 println(errsBPAS)

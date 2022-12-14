@@ -36,7 +36,7 @@ function do not appear here.
 """
 function big3sim(evaluator_generator, nouter=200; nclusters=500, nclustersize=7,
     σs=[0.25, 0.5, 0.75, 1.0, 1.25], 
-    τs=[-1.0, 1.5, 2.0, 2.5])
+    τs=[-Inf, 1.5, 2.0, 2.5])
     errs = NamedArray(Matrix{Float64}(undef, length(σs),  length(τs)),
         (σs, τs), ("σ","τ"))
     errsBP = deepcopy(errs)
@@ -53,8 +53,14 @@ function big3sim(evaluator_generator, nouter=200; nclusters=500, nclustersize=7,
         println("Summary predictors for " * description(ev))
         println(byY)
         println()
-        errs[iRow, :] = msepabs(clust, τs)
-        errsBP[iRow, :] = msepabs(clust, τs, :zsimp)
+        # poor person's dispatch
+        if ev.targetName == "zAS"
+            errs[iRow, :] = msep(clust, τs)
+            errsBP[iRow, :] = msep(clust, τs, :zsimp)
+        else
+            errs[iRow, :] = msepabs(clust, τs)
+            errsBP[iRow, :] = msepabs(clust, τs, :zsimp)
+        end
         iRow += 1
     end
     return (errs, errsBP) 

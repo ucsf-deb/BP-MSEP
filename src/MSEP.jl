@@ -24,7 +24,7 @@ export Experiment, ExperimentResult, compute, go
 
 export LogisticSimpleEvaluator, Evaluator
 export zSQdensity, wDensity, make_zAB_generator, make_zAS_generator
-export simulate, bigsim, msep, msepabs, bigbigsim, big3sim, rearrange
+export simulate, bigsim, msep, msepabs, bigbigsim, big3sim, rearrange, twoToOne
 
 # includes at bottom
 

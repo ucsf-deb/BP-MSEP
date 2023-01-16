@@ -81,6 +81,13 @@ function make_zAS_generator(; λ=1.6, k=-1.0, order=5)
     end
 end
 
+function make_zCT_generator(; λ=2.0, k=-1.0, order=5)
+    function (σ)
+        LogisticSimpleEvaluator(λ, k, σ, order, CTDensity, "zCT", 
+        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    end
+end
+
 """
 Unpack the matrix in errs into the already allocated df
 starting at row i0

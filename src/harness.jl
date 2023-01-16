@@ -93,8 +93,8 @@ println("zBP MSEP for z > τ")
 println(errsBPAS)
 
 @time errsCT, errsBPCT = big3sim(make_zCT_generator(), 1000; nclusters=400);
-println("zCT (λ = 2.0) MSEP to I(|z|>τ)")
-println(errsAB)
+println("zCT (λ = 2.0) MSEP for |z|>τ")
+println(errsCT)
 println()
-println("zBP MSEP for I(|z|>τ)")
-println(errsBPAB)
+println("zBP MSEP for |z|>τ)")
+println(errsBPCT)

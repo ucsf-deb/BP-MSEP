@@ -26,6 +26,45 @@ Added so Gadfly can output pdf, ps, png, or anything but svg:
 Cairo
 Fontconfig
 
+Design of `Evaluator`s
+======================
+`Evaluator`s evaluate likelihoods.  Or, currently, they have most of the information needed to do so, including the probability density of z, the intercept, the integrator.  But they don't know the layout of
+the data, in particular how clusters are defined, or, for that matter, how to compute the conditional probability of the observed outcome given z.  They don't know about the work area or the different computations one might want, e.g., E(z) or E(wz).
+
+Handling a cutoff predictor is awkward.  The default integration from $-Inf$ to $Inf$ with an appropriately computed density (i.e., one that is 0 when $|z| \leq \tau$) should work in principle, and I defined `CTDensity()` to compute it.  In practice it fails very badly.  I presume I need to integrate explicitly over the proper intervals.  But this means even higher level code needs to change.  To do so it should dispatch on a different type.
+
+The possible `CutoffEvaluator` type is just a small tweak on `LogisticSimpleEvaluator` but---oops---julia does not support inheritance of concrete types.  There are a blizzard of solutions/work-arounds.  See https://discourse.julialang.org/t/composition-and-inheritance-the-julian-way/11231 for an extensive discussion and pointers.  See https://github.com/gcalderone/ReusePatterns.jl for one solution and a nice "bibliography" of other packages in the same space.  My conclusion:
+   1. `julia` doesn't do inheritance, and it's best not to fake it.  Try alternate designs.
+   2. In particular, use composition and `Lazy.@forward` for delegating methods to the "superclass".
+   3. Consider using traits instead.  Basic form is (Tim) Holy traits, https://www.juliabloggers.com/the-emergent-features-of-julialang-part-ii-traits/
+   4. I also studied the use of Types in `MixedModels` for ideas.  As I recall, key classes where templates with types for the various components and dispatch on some mix of those.  I think this is different from the Holy traits approach.
+   5. There seems to be agreement it's best to define methods using only abstract types.  I'm unconvinced that is always possible or desirable.
+
+Also, the `CutoffEvaluator`, at least as imagined with simple inheritance (which is impossible) would use an integrator that only integrates over the intended range. In terms of the external interface, it means the current approach, in which the integrator is invoked with arguments for the range (i.e., `-Inf, Inf`) is wrong: the range of integration should be decided by the `Evaluator` itself.  The current interface is the result of just dumping the AGK quadrature integrator in the Evaluator.  Also, this means that `CutoffEvaluator` can only provide `zhat`, not `zsimp` (unless it changes the limits of integration or holds 2 integrator) and can just reuse the same density used elsewhere.  Another way of putting it is that zsimp computed with the restricted range integrator is the weighted integrator for the cutoff.
+
+What are the dimensions (possible traits) of the problem on which the computation depends?
+  1. The outcome variable.  Always binary for us with 0/1 coding.  Or do I have Boolean?
+  2. Functional form of relation between $z$ and the outcome.  Always logistic for us.
+     1. We have intercept only.
+     2. Could have covariates.  Lots of simplifications possible if none.
+     3. Always linear for us.
+  3. Layout of input data.  How to identify clusters.
+     1. Currently each is same size and the elements are consecutive.
+     2. My code assume only that elements are consecutive.
+  4. Characteristics of weight function.
+     1. Discontinuous?
+     2. Cutoff?
+     3. Inside the exponential?
+     4. Possibly offsetting within exponential?
+  5. Quantitites that can be computed:
+     1. zhat
+     2. zBP aka zsimp
+     3. individual expectations (currently in `Objective` enumeration)
+
+
+I don't think the current division of responsibilities is good. `simulate(::LogisticSimpleEvaluator, ...)` in `evaluator.jl` launches workers runninig `worker()`, which is what actually computes the final values.  It actually does leave the range to the evaluator. It gets 4 individual expectations and reports 2 values, ignoring the precision of the results.
+
+I defined abstract Types `LogisticEvaluator` and `CutoffEvaluator`, thinking I could inherit from both.  But, even for abstract types, `julia` is single inheritance.  So that won't work.
 
 To Do
 =====

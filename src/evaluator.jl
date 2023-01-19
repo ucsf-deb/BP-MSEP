@@ -12,6 +12,23 @@ Typically an Evaluator will include
    behavior
 """
 abstract type Evaluator end
+
+
+"""
+Evaluators for binary outcomes.
+"""
+abstract type LogisticEvaluator <: Evaluator end
+
+"""
+Evaluators for Cutoff (CT) weighting schemes,
+which are w=0 if |z|≤λ, else w=1.
+
+This is unlike many others because
+    1. The weight is not a term evaluated inside the exponential.
+    2. The discontinuities do not work well with our typical numerical tools.
+"""
+abstract type CutoffEvaluator <: Evaluator end
+
 """
 Evaluates data as produced by `maker()` with a simple mixed logistic model
 We only use `Y`, a binary indicator, since the model has no observed covariates.
@@ -39,6 +56,42 @@ mutable struct  LogisticSimpleEvaluator <: Evaluator
     const targetName::String
 
     "used to integrate f(z) over the real line"
+    const integrator
+
+    "short name of numerical integration method"
+    const integratorName::String
+
+    "fuller description integration method"
+    const integratorDescription::String
+end
+
+"""
+Evaluates data as produced by `maker()` with a cutoff mixed logistic model
+We only use `Y`, a binary indicator, since the model has no observed covariates.
+"""
+mutable struct  LogisticCutoffEvaluator <: LogisticEvaluator
+    "cutoff parameter"
+    # const requires julia 1.8+
+    const λ
+
+    "parameters for the regression part of the model"
+    const k
+
+    "parameters for random effect distn"
+    const σ
+
+    "order for the numerical integration"
+    const integration_order::Integer
+
+    ## The constructor is responsible for the following
+    "f(z, workarea)= conditional density*normal density
+    or, if withZ is true, z*...."
+    const f
+
+    "Short name of primary estimand, e.g., zSQ"
+    const targetName::String
+
+    "used to integrate f(z) over the parts of the real line beyond λ in absolute value"
     const integrator
 
     "short name of numerical integration method"

@@ -10,9 +10,37 @@ Typically an Evaluator will include
    - the conditional density of the outcomes given the data
    - a method of numerical integration, including any parameters to set its 
    behavior
+
+Expected protocol:
+zhat(::Evaluator, ::WorkArea)
+return an estimate of zhat for the cluster identified in the workarea
+
+And the following functions, provided here with a default Implementation
+that assumes certain instance variables are available.
 """
 abstract type Evaluator end
 
+
+"return brief name of primary predictor being evaluated"
+# Maybe name(ev::T)  where {T <: Evaluator}::String ?
+function name(ev::Evaluator)::String
+    ev.targetName
+end
+
+"return fuller description of evaluator. full=true gives more detail"
+function description(ev::Evaluator, full=false)::String
+    des = "$(ev.targetName)(λ=$(ev.λ), k=$(ev.k), σ=$(ev.σ))"
+    if full
+        return des * ". $(ev.integratorDescription), order $(ev.integration_order)."
+    else
+        return des * " $(ev.integratorName)($(ev.integration_order))"
+    end
+end
+
+"return targetName with suffix"
+function name_with_suffix(suf::String, ev::Evaluator)::String
+    return ev.targetName * suf
+end
 
 """
 Evaluators for binary outcomes.
@@ -26,328 +54,12 @@ which are w=0 if |z|≤λ, else w=1.
 This is unlike many others because
     1. The weight is not a term evaluated inside the exponential.
     2. The discontinuities do not work well with our typical numerical tools.
+
+Logically Cutoff and Logistic are Orthogonal, but since julia is single inheritance,
+for now we focus on the case we need.
 """
-abstract type CutoffEvaluator <: Evaluator end
+abstract type CutoffEvaluator <: LogisticEvaluator end
 
-"""
-Evaluates data as produced by `maker()` with a simple mixed logistic model
-We only use `Y`, a binary indicator, since the model has no observed covariates.
-"""
-mutable struct  LogisticSimpleEvaluator <: Evaluator
-    "parameter for weight function"
-    # const requires julia 1.8+
-    const λ
-
-    "parameters for the regression part of the model"
-    const k
-
-    "parameters for random effect distn"
-    const σ
-
-    "order for the numerical integration"
-    const integration_order::Integer
-
-    ## The constructor is responsible for the following
-    "f(z, workarea)= w(z)*conditional density*normal density
-    or, if withZ is true, z*w(z)*...."
-    const f
-
-    "Short name of primary estimand, e.g., zSQ"
-    const targetName::String
-
-    "used to integrate f(z) over the real line"
-    const integrator
-
-    "short name of numerical integration method"
-    const integratorName::String
-
-    "fuller description integration method"
-    const integratorDescription::String
-end
-
-"""
-Evaluates data as produced by `maker()` with a cutoff mixed logistic model
-We only use `Y`, a binary indicator, since the model has no observed covariates.
-"""
-mutable struct  LogisticCutoffEvaluator <: LogisticEvaluator
-    "cutoff parameter"
-    # const requires julia 1.8+
-    const λ
-
-    "parameters for the regression part of the model"
-    const k
-
-    "parameters for random effect distn"
-    const σ
-
-    "order for the numerical integration"
-    const integration_order::Integer
-
-    ## The constructor is responsible for the following
-    "f(z, workarea)= conditional density*normal density
-    or, if withZ is true, z*...."
-    const f
-
-    "Short name of primary estimand, e.g., zSQ"
-    const targetName::String
-
-    "used to integrate f(z) over the parts of the real line beyond λ in absolute value"
-    const integrator
-
-    "short name of numerical integration method"
-    const integratorName::String
-
-    "fuller description integration method"
-    const integratorDescription::String
-end
-
-"return brief name of primary predictor being evaluated"
-function name(ev::LogisticSimpleEvaluator)::String
-    ev.targetName
-end
-
-"return fuller description of evaluator. full=true gives more detail"
-function description(ev::LogisticSimpleEvaluator, full=false)::String
-    des = "$(ev.targetName)(λ=$(ev.λ), k=$(ev.k), σ=$(ev.σ))"
-    if full
-        return des * ". $(ev.integratorDescription), order $(ev.integration_order)."
-    else
-        return des * " $(ev.integratorName)($(ev.integration_order))"
-    end
-end
-
-"return targetName with suffix"
-function name_with_suffix(suf::String, ev::LogisticSimpleEvaluator)::String
-    return ev.targetName * suf
-end
-
-"Default to zSQ evaluator"
-function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
-    LogisticSimpleEvaluator(λ, k, σ, integration_order, zSQdensity, "zSQ", 
-    AgnosticAGK(integration_order), "AGK", "Adaptive Gauss-Kronrod")
-end
-
-"enumerate desired calculation for WorkArea"
-@enum Objective justZ justW WZ just1
-
-"""
-Working data for a particular thread.
-This includes all the information needed to evaluate the function we are integrating,
-    since we aren't allowed to pass arguments down other than z.
-"""
-mutable struct  WorkArea
-    """
-    This is the entire data frame.  An individual run will only work with
-    a few rows.
-
-    This only needs to be set once at the start of the thread
-    """
-    const dat::DataFrame
-
-    """
-    An evaluator, such as that above.
-    Also only set once and shared between threads
-    """
-    const evaluator::Evaluator
-
-    "working space for integrator
-    This is created at the start but written to constantly."
-    segs
-    
-    # The following are set on each evaluation
-    "dirty trick to determine whether to integrate over 1, z, w, or wz"
-    objective::Objective
-
-    "first row index of cluster of current interest"
-    i_start::UInt
-
-    "last row index of cluster, inclusive"
-    i_end::UInt
-
-    "index of cluster for output"
-    i_cluster::UInt
-
-end
-
-"evaluate (z, w or wz) * density  for a single cluster"
-function zSQdensity(z::Float64, wa::WorkArea)
-    ev::LogisticSimpleEvaluator = wa.evaluator
-    dat::DataFrame = wa.dat
-    objective::Objective = wa.objective
-
-    #= 
-    The initial d is generally the product of weight (defined using zSQ with parameter λ) and
-    the standard normal density. By combining them we can avoid many
-    overflow problems.
-
-    The exception is for objective == justZ.  In this case, there is no weighting.
-
-    The constant multiplier invsqrt2π for the normal density is unnecessary to the final
-    result of the larger computation.  Since we are omitting the Bayes denominator
-    anyway, I've left it out.
-
-    z by definition is standard normal, and so k and σ only apply to its
-    use for the conditional distribution, cd, not its distribution in
-    the first term.
-
-    =#
-    if objective == justZ || objective == just1
-        # if this doesn't work may want Gauss-Hermite quadrature
-        d = exp(-0.5 * z^2)
-    else
-        d = exp(-0.5 * (1.0 - 2.0 * ev.λ) * z^2)
-    end
-    for i in wa.i_start:wa.i_end
-        Y = dat.Y[i]
-
-        # conditional Y=1 | z
-        # next line gets most of the CPU time
-        cd = logistic(z*ev.σ + ev.k)
-        if Y
-            d *= cd
-        else
-            d *= (1.0-cd)
-        end
-
-    end
-    if objective == justZ || objective == WZ
-        d *= z
-    end
-    return d
-end
-
-"""
-returns a function fDensity(z, wa) where weight is given by
-the function wt(z, λ) which will be evaluated
-inside the exponential.
-"""
-function wDensity(wt )
-    return function(z::Float64, wa::WorkArea)
-        ev::LogisticSimpleEvaluator = wa.evaluator
-        dat::DataFrame = wa.dat
-        objective::Objective = wa.objective
-
-        if objective == justZ || objective == just1
-            # if this doesn't work may want Gauss-Hermite quadrature
-            d = exp(-0.5 * z^2)
-        else
-            d = exp(-0.5 * z^2 + wt(z, ev.λ))
-        end
-        for i in wa.i_start:wa.i_end
-            Y = dat.Y[i]
-
-            # conditional Y=1 | z
-            # next line gets most of the CPU time
-            cd = logistic(z*ev.σ + ev.k)
-            if Y
-                d *= cd
-            else
-                d *= (1.0-cd)
-            end
-
-        end
-        if objective == justZ || objective == WZ
-            d *= z
-        end
-        return d
-    end
-end
-
-"""
-Cutoff density.
-a function of (z, wa) that computes the density-like 
-value requested in wa.objective.
-This is for the CT predictor whose weight is 1 if |z| > λ else 0.
-Unlike previous cases:
-    1. The weight applies outside the exponential.
-    2. There is not an extra level of indirection.
-    wDensity is a function that produces a function to be used by the Evaluator.
-    This is the function to be used directly.
-
-Implementation note: conceivably there would be additional gains from
-realizing that λ is constant and falling back on the indirect approach
-in 2.
-"""
-function CTDensity(z::Float64, wa::WorkArea)
-    ev::LogisticSimpleEvaluator = wa.evaluator
-    dat::DataFrame = wa.dat
-    objective::Objective = wa.objective
-
-    if (objective == justW || objective == WZ) && abs(z) ≤ ev.λ
-        return 0.0
-    end
-    d = exp(-0.5 * z^2)
-
-    for i in wa.i_start:wa.i_end
-        Y = dat.Y[i]
-
-        # conditional Y=1 | z
-        # next line gets most of the CPU time
-        cd = logistic(z*ev.σ + ev.k)
-        if Y
-            d *= cd
-        else
-            d *= (1.0-cd)
-        end
-    end
-    if objective == justZ || objective == WZ
-        d *= z
-    end
-    return d
-end
-
-
-"""
-Defines a computational worker thread
-
-It receives commands through channel.  Those commands are
-(i0, i1, iCluster) meaning evaluate the ratio of 
-E(wz)/E(w) for cluster iCluster, which has rows i0:i1.
-Write the results back into ml with appropriate locking.
-
-i0<0 means there is no more work and the thread should exit.
-
-ml holds the input data with individual rows and the output
-data with a row for each cluster
-"""
-function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
-    wa = WorkArea(ml.individuals, ev, work(ev), WZ, 0, 0, 0)
-    f(z) = ev.f(z, wa)
-    # g(z) = z*f(z) might be faster than the withZ trick
-    while true
-        i0, i1, iCluster = take!(command)
-        if i0 < 0
-            # maybe I should make a call to kill thread
-            return
-        end
-        wa.i_start = i0
-        wa.i_end = i1
-        wa.objective = WZ
-        num = ev.integrator(f, segbuf=wa.segs)
-        wa.objective = justW
-        den = ev.integrator(f, segbuf=wa.segs)
-        wa.objective = justZ
-        zsimp = ev.integrator(f, segbuf=wa.segs)
-        wa.objective = just1
-        den1 = ev.integrator(f, segbuf=wa.segs)
-        # DataFrame is thread-safe for reading, but not writing
-        lock(ml.cluster_lock) do
-            ml.clusters.zhat[iCluster] = num/den
-            ml.clusters.zsimp[iCluster] = zsimp/den1
-        end
-    end
-end
-
-"return a working space of suitable type for the integrator"
-function work(ev::LogisticSimpleEvaluator)
-    return work(ev.integrator)
-end
-
-function work(integrator::AgnosticAGK)
-    # size = order looks as if it's the default
-    # if so, this is more than enough.
-    return alloc_segbuf(size=40)
-end
 
 """
 Create one simulated dataset.

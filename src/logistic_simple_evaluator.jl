@@ -212,12 +212,12 @@ function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
         wa.i_end = i1
         wa.i_cluster = iCluster
         # do long-running calculations outside the lock
-        zhat = zhat(ev, wa)
-        zsimp = zsim(ev, wa)
+        zh = zhat(ev, wa)
+        zs = zsimp(ev, wa)
         # DataFrame is thread-safe for reading, but not writing
         lock(ml.cluster_lock) do
-            ml.clusters.zhat[iCluster] = zhart
-            ml.clusters.zsimp[iCluster] = zsimp
+            ml.clusters.zhat[iCluster] = zh
+            ml.clusters.zsimp[iCluster] = zs
         end
     end
 end

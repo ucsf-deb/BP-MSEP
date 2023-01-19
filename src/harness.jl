@@ -45,7 +45,8 @@ function testNoThread()
     ml.clusters.zsimp .= -100.0 # broadcast to make new columns
     #ev = LogisticSimpleEvaluator(0.4, -1., 1.5)
     # λ is the first input parameter below, and yet wDensity treats it as a variable
-    ev = LogisticSimpleEvaluator(1.6, -1., 1.5, 5, wDensity((z, λ)-> λ*abs(z)), AgnosticAGK(5))
+    ev = LogisticSimpleEvaluator(1.6, -1., 1.5, 5, wDensity((z, λ)-> λ*abs(z)), "zAB", AgnosticAGK(5),
+            "AGK", "Adaptive Gauss-Kronrod")
     command = Channel(4)
 
     # prepopulate command

@@ -218,6 +218,7 @@ include("maker.jl")
 include("evaluator.jl")
 include("logistic_simple_evaluator.jl")
 include("logistic_cutoff_evaluator.jl")
+include("simulate.jl")
 include("post.jl")
 include("bigbigsim.jl")
 

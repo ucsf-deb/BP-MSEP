@@ -125,3 +125,29 @@ function testnut1()
 end
 
 testnut1()
+
+"""
+Create a single cluster and evaluate zhat in one thread.
+Can't debug into threads.
+"""
+function testnut2()
+    λ = 2.0
+    k = -1.0
+    order = 5
+    σ = 1.25
+    nclustersize = 7
+    ev = LogisticSimpleEvaluator(λ, k, σ, order, CTDensity, "zCT", 
+        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    df = DataFrame(cid=fill(1, nclustersize),
+        sid=1:nclustersize,
+        z=zeros(nclustersize),
+        Y=fill(false, nclustersize))
+    df[3, :Y] = true  # some ∑Y = 1
+    wa = MSEP.WorkArea(df, ev, MSEP.work(ev), MSEP.WZ, 0, 0, 0)
+    wa.i_start = 1
+    wa.i_end = nclustersize
+    wa.i_cluster = 1
+    zh = zhat(ev, wa)
+end
+
+testnut2()

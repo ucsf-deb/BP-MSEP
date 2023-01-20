@@ -12,12 +12,12 @@ end
 function (cagk::CutoffAGK)(f; segbuf=nothing)
     δ = sqrt(eps())
     value, err = quadgk(f, -Inf, -cagk.λ, order=cagk.order,
-        atol=δ, segbuf=segbuf)
+        atol=0, segbuf=segbuf)
     if err > 2*max(δ, δ*value)
         error("CutoffAGK unable to integrate lower tail accurately")
     end
     v2, err = quadgk(f, cagk.λ, Inf, order=cagk.order,
-        atol=δ, segbuf=segbuf)
+        atol=0, segbuf=segbuf)
     if err > 2*max(δ, δ*value)
         error("CutoffAGK unable to integrate upper tail accurately")
     end

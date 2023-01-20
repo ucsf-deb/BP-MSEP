@@ -93,9 +93,35 @@ println()
 println("zBP MSEP for z > τ")
 println(errsBPAS)
 
-@time errsCT, errsBPCT = big3sim(make_zCT_generator(), 1000; nclusters=400);
+@time errsCT, errsBPCT = big3sim(make_zCT_generator(), 10; nclusters=400);
 println("zCT (λ = 2.0) MSEP for |z|>τ")
 println(errsCT)
 println()
 println("zBP MSEP for |z|>τ)")
 println(errsBPCT)
+
+using Random
+# try one nutty value
+# from guts of big3sim
+function testnut1()
+    λ = 2.0
+    k = -1.0
+    order = 5
+    σ = 1.25
+    ev = LogisticSimpleEvaluator(λ, k, σ, order, CTDensity, "zCT", 
+        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    nouter = 1
+    Random.seed!(78093580)
+    clust = bigsim(ev, nouter; nclusters=400, nclustersize=7)
+    groups= groupby(clust, :∑Y)
+    byY = combine(groups, :zhat=>mean=>name(ev), 
+                :zhat=>std=>name_with_suffix("_sd", ev),
+                :zsimp=>mean=>:zsimp,
+                :zsimp=>std=>:zsimp_sd)
+
+    println("Summary predictors for " * description(ev))
+    println(byY)
+    println()
+end
+
+testnut1()

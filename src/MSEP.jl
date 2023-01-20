@@ -22,7 +22,8 @@ export condzy1
 # other test code
 export Experiment, ExperimentResult, compute, go
 
-export LogisticSimpleEvaluator, Evaluator
+export LogisticSimpleEvaluator, LogisticCutoffEvaluator, Evaluator
+export name, description, name_with_suffix, zhat, zsimp
 export zSQdensity, wDensity, CTDensity, make_zAB_generator, make_zAS_generator, make_zCT_generator
 export simulate, bigsim, msep, msepabs, bigbigsim, big3sim, rearrange, twoToOne
 
@@ -101,8 +102,12 @@ struct AgnosticAGK
 end
 
 function (aagk::AgnosticAGK)(f; segbuf=nothing)
+    δ = sqrt(eps())
     value, err = quadgk(f, -Inf, Inf, order=aagk.order,
-        atol=sqrt(eps()), segbuf=segbuf)
+        atol=δ, segbuf=segbuf)
+    if err > 2*max(δ, δ*value)
+        error("Unable to integrate accurately")
+    end
     return value
 end
 

@@ -84,7 +84,7 @@ end
 
 "evaluate (z, w or wz) * density  for a single cluster"
 function zSQdensity(z::Float64, wa::WorkArea)
-    ev::LogisticSimpleEvaluator = wa.evaluator
+    ev = wa.evaluator
     dat::DataFrame = wa.dat
     objective::Objective = wa.objective
 

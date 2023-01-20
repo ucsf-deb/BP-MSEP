@@ -136,8 +136,7 @@ function testnut2()
     order = 5
     σ = 1.25
     nclustersize = 7
-    ev = LogisticSimpleEvaluator(λ, k, σ, order, CTDensity, "zCT", 
-        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    ev = LogisticCutoffEvaluator(λ, k, σ, order)
     df = DataFrame(cid=fill(1, nclustersize),
         sid=1:nclustersize,
         z=zeros(nclustersize),

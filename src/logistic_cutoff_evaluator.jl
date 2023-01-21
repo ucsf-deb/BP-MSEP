@@ -1,6 +1,6 @@
 """
 This specialized integrator is just like AgnosticAGK
-except that it only integrates over the |z| > λ.
+except that it only integrates over |z| > λ.
 It is likely that one or both parts will be extremely 
 small.
 """

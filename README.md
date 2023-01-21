@@ -31,16 +31,23 @@ Design of `Evaluator`s
 `Evaluator`s evaluate likelihoods.  Or, currently, they have most of the information needed to do so, including the probability density of z, the intercept, the integrator.  But they don't know the layout of
 the data, in particular how clusters are defined, or, for that matter, how to compute the conditional probability of the observed outcome given z.  They don't know about the work area or the different computations one might want, e.g., E(z) or E(wz).
 
-Handling a cutoff predictor is awkward.  The default integration from $-Inf$ to $Inf$ with an appropriately computed density (i.e., one that is 0 when $|z| \leq \tau$) should work in principle, and I defined `CTDensity()` to compute it.  In practice it fails very badly.  I presume I need to integrate explicitly over the proper intervals.  But this means even higher level code needs to change.  To do so it should dispatch on a different type.
+Handling a cutoff predictor is awkward.  The default integration from $-\infty$ to $\infty$ with an appropriately computed density (i.e., one that is 0 when $|z| \leq \tau$) should work in principle, and I defined `CTDensity()`, since deleted, to compute it.  In practice it fails very badly.  The value for the denominator is very small; when it is estimated too low it produces very large hat estimates.  I need to integrate explicitly over the proper intervals.  But this means even higher level code needs to change.  To do so it should dispatch on a different type.
 
-The possible `CutoffEvaluator` type is just a small tweak on `LogisticSimpleEvaluator` but---oops---julia does not support inheritance of concrete types.  There are a blizzard of solutions/work-arounds.  See https://discourse.julialang.org/t/composition-and-inheritance-the-julian-way/11231 for an extensive discussion and pointers.  See https://github.com/gcalderone/ReusePatterns.jl for one solution and a nice "bibliography" of other packages in the same space.  My conclusion:
+`LogisticCutoffEvaluator` is just a small tweak on `LogisticSimpleEvaluator` but---oops---julia does not support inheritance of concrete types.  There are a blizzard of solutions/work-arounds.  See https://discourse.julialang.org/t/composition-and-inheritance-the-julian-way/11231 for an extensive discussion and pointers.  See https://github.com/gcalderone/ReusePatterns.jl for one solution and a nice "bibliography" of other packages in the same space.  My conclusion:
    1. `julia` doesn't do inheritance, and it's best not to fake it.  Try alternate designs.
    2. In particular, use composition and `Lazy.@forward` for delegating methods to the "superclass".
    3. Consider using traits instead.  Basic form is (Tim) Holy traits, https://www.juliabloggers.com/the-emergent-features-of-julialang-part-ii-traits/
    4. I also studied the use of Types in `MixedModels` for ideas.  As I recall, key classes where templates with types for the various components and dispatch on some mix of those.  I think this is different from the Holy traits approach.
    5. There seems to be agreement it's best to define methods using only abstract types.  I'm unconvinced that is always possible or desirable.
 
-Also, the `CutoffEvaluator`, at least as imagined with simple inheritance (which is impossible) would use an integrator that only integrates over the intended range. In terms of the external interface, it means the current approach, in which the integrator is invoked with arguments for the range (i.e., `-Inf, Inf`) is wrong: the range of integration should be decided by the `Evaluator` itself.  The current interface is the result of just dumping the AGK quadrature integrator in the Evaluator.  Also, this means that `CutoffEvaluator` can only provide `zhat`, not `zsimp` (unless it changes the limits of integration or holds 2 integrator) and can just reuse the same density used elsewhere.  Another way of putting it is that zsimp computed with the restricted range integrator is the weighted integrator for the cutoff.
+For now, I do not use composition (2 above) but simply do an almost entirely redundant parallel implementation, coupled with definitions for a few functions so they work with either type.  Since I currently specify a special type for the integrator, composition isn't an option.
+
+`LogisticCutoffEvaluator` actually does not use a special density function (the `f` field).  Instead it uses a custom integrator, `CutoffAGK`, that returns the sum of the numeric integrals from $(-\infty, -\lambda)$ and $(\lambda, \infty)$. The "standard" integrator `AgnosticAGK` integrates over the whole real line $(-\infty, \infty)$.  I tweaked the tolerances some, but they may still need some work.
+
+Because of the custom integrator, `LogisticCutoffEvaluator` can only provide `zhat`, not `zsimp` and can just reuse the same density used elsewhere.  Another way of putting it is that zsimp computed with the restricted range integrator is the weighted integrator for the cutoff. I could provide 2 integrators for the `LogisticCutoffEvaluator` so that it could compute `zsimp`, but I actually want to reduce such computations and so didn't bother.
+
+Traits
+------
 
 What are the dimensions (possible traits) of the problem on which the computation depends?
   1. The outcome variable.  Always binary for us with 0/1 coding.  Or do I have Boolean?
@@ -61,10 +68,12 @@ What are the dimensions (possible traits) of the problem on which the computatio
      2. zBP aka zsimp
      3. individual expectations (currently in `Objective` enumeration)
 
+Misc
+----
 
-I don't think the current division of responsibilities is good. `simulate(::LogisticSimpleEvaluator, ...)` in `evaluator.jl` launches workers runninig `worker()`, which is what actually computes the final values.  It actually does leave the range to the evaluator. It gets 4 individual expectations and reports 2 values, ignoring the precision of the results.
+The current division of responsibilities is both fuzzy and probably suboptimal.
 
-I defined abstract Types `LogisticEvaluator` and `CutoffEvaluator`, thinking I could inherit from both.  But, even for abstract types, `julia` is single inheritance.  So that won't work.
+I defined abstract Types `LogisticEvaluator` and `CutoffEvaluator`, thinking I could inherit from both.  But, even for abstract types, `julia` is single inheritance.  So that won't work, and I made `CutoffEvaluator <: LogisticEvaluator`.
 
 To Do
 =====

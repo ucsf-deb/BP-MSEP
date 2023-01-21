@@ -83,7 +83,7 @@ To Do
   - [ ] or change fields in evaluator to be mutable
   - [ ] or take the field out of the evaluator, but perhaps pass it in
 - [ ] syncronize random numbers across different scenarios
-- [ ] don't necessarily need to compute zBP on each simulation
+- [ ] don't necessarily need to compute zBP on each simulation.  `LogisticCutoffEvaluator` actually can not compute zBP; that is it does not implement `zsimp()`.  And many of the simulators above it follow through.  But it's ugly.
 - [ ] reduce the ~1/2 time spent doing gc
 - [ ] try some large cluster sizes
 - [ ] How does $\sigma \neq 1$ interact with $R$?
@@ -94,13 +94,17 @@ To Do
 - [x] Method dispatch ignores keyword arguments.
 - [ ] How to test it's actually working?
 - [ ] Is the doubly conditioned MSEP always $> \tau-z_{FX}$ when $z_{FX}<\tau$?  Logically, it seems it should be.
-- [ ] Build evaluator for $z_{CT}$.  Non-standard because weight can't go inside exponential.
+- [x] Build evaluator for $z_{CT}$.  Non-standard because weight can't go inside exponential. Proper numerical evaluation requires changing the limits of integration.
 - [ ] Conduct full set of simulations Chuck wants.
 - [ ] Consider how best to present the results.
 - [ ] Clear out old/obsolete code, esp from `MSEP.jl` which should be just the master switchboard.
-- [ ] Why was I unable to debug into the evaluation of the likelihood?  That is, I put a breakpoint in the inner part of the density evaluation, but it never stopped there even when using `@enter`.
+- [ ] Why was I unable to debug into the evaluation of the likelihood?  That is, I put a breakpoint in the inner part of the density evaluation, but it never stopped there even when using `@enter`.  Possibly because the debugger doesn't worl putside the main thread.
 - [ ] How might this be integrated into choosing optimal values for $\lambda$?
 - [ ] How might this work tuning both confidence interval $\delta$ and $\lambda$ at once?
 - [ ] Port to R.
 - [ ] Use framework to get estimates of actual variability of estimates for given true $z$ or observed $z_{FX}$.
+- [ ] Evaluate error handling in worker threads.  I issue explicit `error()` calls inside the integrators, and other errors can and have arisen.  I think these just silently kill the thread without being bubbled up.
+  - [ ] verify that is the current behavior
+  - [ ] figure out a better alternative
+  - [ ] note the exceptions may be distant from the actual threading code
   

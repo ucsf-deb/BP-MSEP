@@ -37,33 +37,48 @@ function do not appear here.
 function big3sim(evaluator_generator, nouter=200; nclusters=500, nclustersize=7,
     σs=[0.25, 0.5, 0.75, 1.0, 1.25], 
     τs=[-Inf, 1.5, 2.0, 2.5])
+    # so has_simp survives outside the for loop
+    has_simp = false
     errs = NamedArray(Matrix{Float64}(undef, length(σs),  length(τs)),
         (σs, τs), ("σ","τ"))
     errsBP = deepcopy(errs)
     iRow = 1
     for σ in σs
         ev = evaluator_generator(σ)
+        has_simp = (name(ev) != "zCT") # primitive test. maybe test class?
         clust = bigsim(ev, nouter; nclusters=nclusters, nclustersize=nclustersize)
         groups= groupby(clust, :∑Y)
-        byY = combine(groups, :zhat=>mean=>name(ev), 
+        if has_simp
+            byY = combine(groups, :zhat=>mean=>name(ev), 
                         :zhat=>std=>name_with_suffix("_sd", ev),
                         :zsimp=>mean=>:zsimp,
                         :zsimp=>std=>:zsimp_sd)
-
+        else
+            byY = combine(groups, :zhat=>mean=>name(ev), 
+                        :zhat=>std=>name_with_suffix("_sd", ev))
+        end
         println("Summary predictors for " * description(ev))
         println(byY)
         println()
         # poor person's dispatch
         if ev.targetName == "zAS"
             errs[iRow, :] = msep(clust, τs)
-            errsBP[iRow, :] = msep(clust, τs, :zsimp)
+            if has_simp  # should always be true, but protect against logic changes
+                errsBP[iRow, :] = msep(clust, τs, :zsimp)
+            end
         else
             errs[iRow, :] = msepabs(clust, τs)
-            errsBP[iRow, :] = msepabs(clust, τs, :zsimp)
+            if has_simp
+                errsBP[iRow, :] = msepabs(clust, τs, :zsimp)
+            end
         end
         iRow += 1
     end
-    return (errs, errsBP) 
+    if has_simp
+        return (errs, errsBP) 
+    else
+        return (errs, Nothing)
+    end
 end
 
 ### The functions make the functions the are the first argument above.
@@ -83,8 +98,7 @@ end
 
 function make_zCT_generator(; λ=2.0, k=-1.0, order=5)
     function (σ)
-        LogisticSimpleEvaluator(λ, k, σ, order, CTDensity, "zCT", 
-        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+        LogisticCutoffEvaluator(λ, k, σ, order)
     end
 end
 

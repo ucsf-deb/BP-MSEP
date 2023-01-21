@@ -108,16 +108,14 @@ function testnut1()
     k = -1.0
     order = 5
     σ = 1.25
-    ev = LogisticSimpleEvaluator(λ, k, σ, order, CTDensity, "zCT", 
-        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    ev = LogisticCutoffEvaluator(λ, k, σ, order)
     nouter = 1
     Random.seed!(78093580)
     clust = bigsim(ev, nouter; nclusters=400, nclustersize=7)
     groups= groupby(clust, :∑Y)
     byY = combine(groups, :zhat=>mean=>name(ev), 
-                :zhat=>std=>name_with_suffix("_sd", ev),
-                :zsimp=>mean=>:zsimp,
-                :zsimp=>std=>:zsimp_sd)
+                :zhat=>std=>name_with_suffix("_sd", ev)
+                )
 
     println("Summary predictors for " * description(ev))
     println(byY)

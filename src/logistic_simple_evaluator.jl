@@ -104,9 +104,6 @@ function zSQdensity(z::Float64, wa::WorkArea)
     the first term.
 
     =#
-    local d::Float64
-    local cd::Float64
-    local Y::Bool
     if objective == justZ || objective == just1
         # if this doesn't work may want Gauss-Hermite quadrature
         d = exp(-0.5 * z^2)

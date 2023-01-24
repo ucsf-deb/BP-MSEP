@@ -1,8 +1,7 @@
 """
 This specialized integrator is just like AgnosticAGK
 except that it only integrates over |z| > λ.
-It is likely that one or both parts will be extremely 
-small.
+It is likely that both parts will be extremely small.
 """
 struct CutoffAGK
     λ
@@ -11,6 +10,7 @@ end
 
 function (cagk::CutoffAGK)(f; segbuf=nothing)
     δ = sqrt(eps())
+    # atol=0 is the default, as is rtol=δ
     value, err = quadgk(f, -Inf, -cagk.λ, order=cagk.order,
         atol=0, segbuf=segbuf)
     if err > 2*max(δ, δ*value)

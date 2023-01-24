@@ -2,16 +2,16 @@
 Evaluates data as produced by `maker()` with a simple mixed logistic model
 We only use `Y`, a binary indicator, since the model has no observed covariates.
 """
-mutable struct  LogisticSimpleEvaluator <: Evaluator
+mutable struct  LogisticSimpleEvaluator{TParam} <: Evaluator where TParam
     "parameter for weight function"
     # const requires julia 1.8+
-    const λ
+    const λ::TParam
 
     "parameters for the regression part of the model"
-    const k
+    const k::TParam
 
     "parameters for random effect distn"
-    const σ
+    const σ::TParam
 
     "order for the numerical integration"
     const integration_order::Integer
@@ -48,7 +48,7 @@ Working data for a particular thread.
 This includes all the information needed to evaluate the function we are integrating,
     since we aren't allowed to pass arguments down other than z.
 """
-mutable struct  WorkArea
+mutable struct  WorkArea{TEvaluator}
     """
     This is the entire data frame.  An individual run will only work with
     a few rows.
@@ -61,7 +61,7 @@ mutable struct  WorkArea
     An evaluator, such as that above.
     Also only set once and shared between threads
     """
-    const evaluator::Evaluator
+    const evaluator::TEvaluator
 
     "working space for integrator
     This is created at the start but written to constantly."
@@ -104,6 +104,9 @@ function zSQdensity(z::Float64, wa::WorkArea)
     the first term.
 
     =#
+    local d::Float64
+    local cd::Float64
+    local Y::Bool
     if objective == justZ || objective == just1
         # if this doesn't work may want Gauss-Hermite quadrature
         d = exp(-0.5 * z^2)
@@ -201,7 +204,8 @@ ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
 function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
-    wa = WorkArea(ml.individuals, ev, work(ev), WZ, 0, 0, 0)
+    zip::UInt = 0
+    wa = WorkArea(ml.individuals, ev, work(ev), WZ, zip, zip, zip)
     while true
         i0, i1, iCluster = take!(command)
         if i0 < 0

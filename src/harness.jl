@@ -138,7 +138,8 @@ function testnut2()
         z=zeros(nclustersize),
         Y=fill(false, nclustersize))
     df[3, :Y] = true  # some ∑Y = 1
-    wa = MSEP.WorkArea(df, ev, MSEP.work(ev), MSEP.WZ, 0, 0, 0)
+    zip::UInt = 0
+    wa = MSEP.WorkArea(df, ev, MSEP.work(ev), MSEP.WZ, zip, zip, zip)
     wa.i_start = 1
     wa.i_end = nclustersize
     wa.i_cluster = 1
@@ -146,3 +147,10 @@ function testnut2()
 end
 
 testnut2()
+
+function silly()
+    local bb::Bool
+    bb = false
+    Y::Bool = true
+    return bb
+end

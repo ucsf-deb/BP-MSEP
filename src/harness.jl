@@ -147,10 +147,3 @@ function testnut2()
 end
 
 testnut2()
-
-function silly()
-    local bb::Bool
-    bb = false
-    Y::Bool = true
-    return bb
-end

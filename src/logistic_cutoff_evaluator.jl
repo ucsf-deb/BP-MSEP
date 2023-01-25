@@ -29,16 +29,16 @@ end
 Evaluates data as produced by `maker()` with a cutoff mixed logistic model
 We only use `Y`, a binary indicator, since the model has no observed covariates.
 """
-mutable struct  LogisticCutoffEvaluator <: CutoffEvaluator
+mutable struct  LogisticCutoffEvaluator{TParam} <: CutoffEvaluator
     "cutoff parameter"
     # const requires julia 1.8+
-    const λ
+    const λ::TParam
 
     "parameters for the regression part of the model"
-    const k
+    const k::TParam
 
     "parameters for random effect distn"
-    const σ
+    const σ::TParam
 
     "order for the numerical integration"
     const integration_order::Integer
@@ -100,7 +100,8 @@ ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
 function worker(command::Channel, ml::MultiLevel, ev::LogisticCutoffEvaluator)
-    wa = WorkArea(ml.individuals, ev, work(ev), justZ, 0, 0, 0)
+    zip::UInt = 0
+    wa = WorkArea(ml.individuals, ev, work(ev), justZ, zip, zip, zip)
     while true
         i0, i1, iCluster = take!(command)
         if i0 < 0

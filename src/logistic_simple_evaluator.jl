@@ -2,7 +2,7 @@
 Evaluates data as produced by `maker()` with a simple mixed logistic model
 We only use `Y`, a binary indicator, since the model has no observed covariates.
 """
-mutable struct  LogisticSimpleEvaluator{TParam} <: Evaluator where TParam
+mutable struct  LogisticSimpleEvaluator{TParam} <: Evaluator
     "parameter for weight function"
     # const requires julia 1.8+
     const λ::TParam

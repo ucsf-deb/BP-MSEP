@@ -100,8 +100,9 @@ ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
 function worker(command::Channel, ml::MultiLevel, ev::LogisticCutoffEvaluator)
+    #write(stderr, "Worker launched on thread $(Threads.threadid()).")
     zip::UInt = 0
-    wa = WorkArea(ml.individuals, ev, work(ev), justZ, zip, zip, zip)
+    wa = WorkArea(ml.individuals, ev)
     while true
         i0, i1, iCluster = take!(command)
         if i0 < 0

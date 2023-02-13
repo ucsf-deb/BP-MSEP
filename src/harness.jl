@@ -45,7 +45,7 @@ function testNoThread()
     ml.clusters.zsimp .= -100.0 # broadcast to make new columns
     #ev = LogisticSimpleEvaluator(0.4, -1., 1.5)
     # λ is the first input parameter below, and yet wDensity treats it as a variable
-    ev = LogisticSimpleEvaluator(1.6, -1., 1.5, 5, wDensity((z, λ)-> λ*abs(z)), "zAB", AgnosticAGK(5),
+    ev = LogisticSimpleEvaluator(1.6, -1., 1.5, 5, MSEP.wDensity((z, λ)-> λ*abs(z)), "zAB", AgnosticAGK(5),
             "AGK", "Adaptive Gauss-Kronrod")
     command = Channel(4)
 
@@ -77,7 +77,7 @@ pdat = MSEP.rearrange(errs, errsBP)
 plot(pdat, x=:σ, y=:MSEP, color=:τ, linestyle=:pred, Scale.color_discrete(), Geom.line, Scale.linestyle_discrete(order=[1, 2])) |> PDF("MSEP-compare.pdf")
 
 # newer style
-@time errsAB, errsBPAB = big3sim(make_zAB_generator(), 1000; nclusters=400);
+@time errsAB, errsBPAB = big3sim(make_zAB_generator(), 100; nclusters=400);
 println("zAB (λ = 1.6) MSEP to |z|>τ")
 println(errsAB)
 println()
@@ -138,8 +138,7 @@ function testnut2()
         z=zeros(nclustersize),
         Y=fill(false, nclustersize))
     df[3, :Y] = true  # some ∑Y = 1
-    zip::UInt = 0
-    wa = MSEP.WorkArea(df, ev, MSEP.work(ev), MSEP.WZ, zip, zip, zip)
+    wa = MSEP.WorkArea(df, ev)
     wa.i_start = 1
     wa.i_end = nclustersize
     wa.i_cluster = 1

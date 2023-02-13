@@ -56,6 +56,8 @@ mutable struct  WorkArea{TEvaluator}
     This only needs to be set once at the start of the thread
     """
     const dat::DataFrame
+    "Y is just the type-stable version of Y in dat"
+    const Y::BitVector
 
     """
     An evaluator, such as that above.
@@ -80,6 +82,12 @@ mutable struct  WorkArea{TEvaluator}
     "index of cluster for output"
     i_cluster::UInt
 
+end
+
+"convenient constructor"
+function WorkArea(dat::DataFrame, ev::TEvaluator) where {TEvaluator}
+    zip::UInt = 0
+    WorkArea{TEvaluator}(dat, dat.Y, ev, work(ev), WZ, zip, zip, zip)
 end
 
 "evaluate (z, w or wz) * density  for a single cluster"
@@ -111,7 +119,7 @@ function zSQdensity(z::Float64, wa::WorkArea)
         d = exp(-0.5 * (1.0 - 2.0 * ev.λ) * z^2)
     end
     for i in wa.i_start:wa.i_end
-        Y = dat.Y[i]
+        Y = wa.Y[i]
 
         # conditional Y=1 | z
         # next line gets most of the CPU time
@@ -147,7 +155,7 @@ function wDensity(wt )
             d = exp(-0.5 * z^2 + wt(z, ev.λ))
         end
         for i in wa.i_start:wa.i_end
-            Y = dat.Y[i]
+            Y = wa.Y[i]
 
             # conditional Y=1 | z
             # next line gets most of the CPU time
@@ -201,8 +209,7 @@ ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
 function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
-    zip::UInt = 0
-    wa = WorkArea(ml.individuals, ev, work(ev), WZ, zip, zip, zip)
+    wa = WorkArea(ml.individuals, ev)
     while true
         i0, i1, iCluster = take!(command)
         if i0 < 0

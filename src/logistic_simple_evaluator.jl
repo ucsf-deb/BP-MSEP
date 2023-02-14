@@ -91,7 +91,7 @@ function WorkArea(dat::DataFrame, ev::TEvaluator) where {TEvaluator}
 end
 
 "evaluate (z, w or wz) * density  for a single cluster"
-function zSQdensity(z::Float64, wa::WorkArea)
+function zSQdensity(z::Float64, wa::TWorkArea) where {TWorkArea}
     ev = wa.evaluator
     dat::DataFrame = wa.dat
     objective::Objective = wa.objective
@@ -143,7 +143,7 @@ the function wt(z, λ) which will be evaluated
 inside the exponential.
 """
 function wDensity(wt )
-    return function(z::Float64, wa::WorkArea)
+    return function(z::Float64, wa::WorkArea)  where {WorkArea}
         ev::LogisticSimpleEvaluator = wa.evaluator
         dat::DataFrame = wa.dat
         objective::Objective = wa.objective
@@ -176,7 +176,7 @@ end
 
 "Evaluate zhat for cluster defined in work area wa"
 #TODO: check accuracy of integration
-function zhat(ev::LogisticSimpleEvaluator, wa::WorkArea)
+function zhat(ev::LogisticSimpleEvaluator, wa::WorkArea) where {WorkArea}
     f(z) = ev.f(z, wa)
     wa.objective = WZ
     num = ev.integrator(f, segbuf=wa.segs)
@@ -186,7 +186,7 @@ function zhat(ev::LogisticSimpleEvaluator, wa::WorkArea)
 end
 
 "Evaluate zsimp, a potential analogue of zBP"
-function zsimp(ev::LogisticSimpleEvaluator, wa::WorkArea)
+function zsimp(ev::LogisticSimpleEvaluator, wa::WorkArea) where {WorkArea}
     f(z) = ev.f(z, wa)
     wa.objective = justZ
     zsimp = ev.integrator(f, segbuf=wa.segs)

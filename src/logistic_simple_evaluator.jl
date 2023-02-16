@@ -36,7 +36,7 @@ end
 
 "Default to zSQ evaluator"
 function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
-    LogisticSimpleEvaluator(λ, k, σ, integration_order, zSQdensity{WorkArea{LogisticSimpleEvaluator}}, "zSQ", 
+    LogisticSimpleEvaluator(λ, k, σ, integration_order, zSQdensity, "zSQ", 
     AgnosticAGK(integration_order), "AGK", "Adaptive Gauss-Kronrod")
 end
 

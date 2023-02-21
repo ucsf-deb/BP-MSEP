@@ -2,7 +2,7 @@
 Evaluates data as produced by `maker()` with a simple mixed logistic model
 We only use `Y`, a binary indicator, since the model has no observed covariates.
 """
-mutable struct  LogisticSimpleEvaluator{TParam} <: Evaluator
+mutable struct  LogisticSimpleEvaluator{TParam,TObjFn,TIntegrator} <: Evaluator
     "parameter for weight function"
     # const requires julia 1.8+
     const λ::TParam
@@ -19,13 +19,13 @@ mutable struct  LogisticSimpleEvaluator{TParam} <: Evaluator
     ## The constructor is responsible for the following
     "f(z, workarea)= w(z)*conditional density*normal density
     or, if withZ is true, z*w(z)*...."
-    const f
+    const f::TObjFn
 
     "Short name of primary estimand, e.g., zSQ"
     const targetName::String
 
     "used to integrate f(z) over the real line"
-    const integrator
+    const integrator::TIntegrator
 
     "short name of numerical integration method"
     const integratorName::String
@@ -48,7 +48,7 @@ Working data for a particular thread.
 This includes all the information needed to evaluate the function we are integrating,
     since we aren't allowed to pass arguments down other than z.
 """
-mutable struct  WorkArea{TEvaluator}
+mutable struct  WorkArea{TEvaluator,TSegs}
     """
     This is the entire data frame.  An individual run will only work with
     a few rows.
@@ -67,7 +67,7 @@ mutable struct  WorkArea{TEvaluator}
 
     "working space for integrator
     This is created at the start but written to constantly."
-    segs
+    segs::TSegs
     
     # The following are set on each evaluation
     "dirty trick to determine whether to integrate over 1, z, w, or wz"
@@ -87,7 +87,7 @@ end
 "convenient constructor"
 function WorkArea(dat::DataFrame, ev::TEvaluator) where {TEvaluator}
     zip::UInt = 0
-    WorkArea{TEvaluator}(dat, dat.Y, ev, work(ev), WZ, zip, zip, zip)
+    WorkArea(dat, dat.Y, ev, work(ev), WZ, zip, zip, zip)
 end
 
 "evaluate (z, w or wz) * density  for a single cluster"

@@ -2,3 +2,6 @@
 *.mem
 JuliaSysimage.so
 Session02.log
+\#*
+\.\#*
+*~

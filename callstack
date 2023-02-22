@@ -1,0 +1,284 @@
+
+harness_alloc.jl
+  bigbigsim
+bigbigsim.jl
+    bigsim(nouter;..)
+simulate.jl:75 (first one)
+      simulate(nclusters...)
+        LogisticSimpleEvaluator()
+logistic_simple_evaluator.jl
+	  creates structure using zSQdensity as one argument
+	  zSQdensity is currently templated
+simulate.jl (second one)
+	simulate(ev; ...)
+	  Threads.@spawn worker(command, ml, ev)
+logistic_simple_evaluator.jl:211
+	    wa = WorkArea(data, ev)  # also templated
+	    zhat()
+	    zsimp()
+
+@code_warntype MSEP.worker(command, ml, ev)
+MethodInstance for MSEP.worker(::Channel{Any}, ::MultiLevel, ::LogisticSimpleEvaluator{Float64})
+  from worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator) in MSEP at c:\Users\rdboylan\Documents\BP\MSEP\src\logistic_simple_evaluator.jl:211Arguments
+# even though LogisticSimpleEvaluator is a parameterized type, the parameter is not reported above
+# that is consistent with the declaration of worker()
+# Note the parameter does appear in the argument list below
+  #self#::Core.Const(MSEP.worker)
+  command::Channel{Any}
+  ml::MultiLevel
+  ev::LogisticSimpleEvaluator{Float64}
+Locals
+  wa::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+  #51::MSEP.var"#51#52"{MultiLevel}
+  @_7::Any
+# next 2 should be Float64.  So type from integral unknown.
+  zs::Any
+  zh::Any
+# fairly naturally info from channel is unknown type
+  iCluster::Any
+  i1::Any
+  i0::Any
+Body::Nothing
+1 ─ %1  = Base.getproperty(ml, :individuals)::DataFrame
+└──       (wa = MSEP.WorkArea(%1, ev))
+2 ┄       Core.typeassert(true, Core.Bool)
+│         Core.NewvarNode(:(#51))
+│         Core.NewvarNode(:(zs))
+│         Core.NewvarNode(:(zh))
+│   %7  = MSEP.take!(command)::Any
+│   %8  = Base.indexed_iterate(%7, 1)::Any
+│         (i0 = Core.getfield(%8, 1))
+│         (@_7 = Core.getfield(%8, 2))  ### what's this?
+│   %11 = Base.indexed_iterate(%7, 2, @_7)::Any
+│         (i1 = Core.getfield(%11, 1))
+│         (@_7 = Core.getfield(%11, 2))
+│   %14 = Base.indexed_iterate(%7, 3, @_7)::Any
+│         (iCluster = Core.getfield(%14, 1))
+│   %16 = (i0 < 0)::Any
+└──       goto #4 if not %16
+3 ─       return nothing
+4 ─       Base.setproperty!(wa, :i_start, i0)
+│         Base.setproperty!(wa, :i_end, i1)
+│         Base.setproperty!(wa, :i_cluster, iCluster)
+│         (zh = MSEP.zhat(ev, wa))
+│         (zs = MSEP.zsimp(ev, wa))
+## var"#51#52" is a local function?
+│   %24 = MSEP.:(var"#51#52")::Core.Const(MSEP.var"#51#52")
+│   %25 = Core.typeof(ml)::Core.Const(MultiLevel)
+│   %26 = Core.typeof(zs)::DataType
+│   %27 = Core.typeof(zh)::DataType
+│   %28 = Core.typeof(iCluster)::DataType
+│   %29 = Core.apply_type(%24, %25, %26, %27, %28)::Type{MSEP.var"#51#52"{MultiLevel, _A, _B, _C}} where {_A, _B, _C}
+│   %30 = zs::Any
+│   %31 = zh::Any
+│         (#51 = %new(%29, ml, %30, %31, iCluster))
+│   %33 = #51::MSEP.var"#51#52"{MultiLevel}
+│   %34 = Base.getproperty(ml, :cluster_lock)::ReentrantLock
+│         MSEP.lock(%33, %34)
+└──       goto #2
+5 ─       Core.Const(:(return nothing))
+
+@code_warntype MSEP.WorkArea(ml.individuals, ev)
+MethodInstance for MSEP.WorkArea(::DataFrame, ::LogisticSimpleEvaluator{Float64})
+  from MSEP.WorkArea(dat::DataFrame, ev::TEvaluator) where TEvaluator in MSEP at c:\Users\rdboylan\Documents\BP\MSEP\src\logistic_simple_evaluator.jl:88
+Static Parameters
+  TEvaluator = LogisticSimpleEvaluator{Float64}
+Arguments
+  #self#::Type{MSEP.WorkArea}
+  dat::DataFrame
+  ev::LogisticSimpleEvaluator{Float64}
+Locals
+  zip::UInt64
+## I think next line indicates stable return type inferred correctly
+Body::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+1 ─ %1 = Base.convert(MSEP.UInt, 0)::Core.Const(0x0000000000000000)
+│        (zip = Core.typeassert(%1, MSEP.UInt))
+│   %3 = Core.apply_type(MSEP.WorkArea, $(Expr(:static_parameter, 1)))::Core.Const(MSEP.WorkArea{LogisticSimpleEvaluator{Float64}})
+│   %4 = Base.getproperty(dat, :Y)::AbstractVector
+│   %5 = MSEP.work(ev)::Any
+│   %6 = zip::Core.Const(0x0000000000000000)
+│   %7 = zip::Core.Const(0x0000000000000000)
+## oddly asymmetric handling of zips
+│   %8 = (%3)(dat, %4, ev, %5, MSEP.WZ, %6, %7, zip::Core.Const(0x0000000000000000))::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+## return value has correct type
+└──      return %8
+
+@code_warntype zhat(ev, wa)
+MethodInstance for MSEP.zhat(::LogisticSimpleEvaluator{Float64}, ::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}})
+  from zhat(ev::LogisticSimpleEvaluator, wa::WorkArea) where WorkArea in MSEP at c:\Users\rdboylan\Documents\BP\MSEP\src\logistic_simple_evaluator.jl:179
+# zhat is a parameterized function with WorkArea parameter
+# I was worried about name collisions between WorkArea as a local parameter, struct name, and function,
+# but it seems to have resolved correctly
+Static Parameters
+  WorkArea = MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+Arguments
+  #self#::Core.Const(MSEP.zhat)
+  ev::LogisticSimpleEvaluator{Float64}
+  wa::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+Locals
+  den::Any
+  num::Any
+  f::MSEP.var"#f#49"{LogisticSimpleEvaluator{Float64}, MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}}
+# unknown return type
+Body::Any
+1 ─ %1  = MSEP.:(var"#f#49")::Core.Const(MSEP.var"#f#49")
+│   %2  = Core.typeof(ev)::Core.Const(LogisticSimpleEvaluator{Float64})
+│   %3  = Core.typeof(wa)::Core.Const(MSEP.WorkArea{LogisticSimpleEvaluator{Float64}})
+│   %4  = Core.apply_type(%1, %2, %3)::Core.Const(MSEP.var"#f#49"{LogisticSimpleEvaluator{Float64}, MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}})
+│         (f = %new(%4, ev, wa))
+│         Base.setproperty!(wa, :objective, MSEP.WZ)
+│   %7  = (:segbuf,)::Core.Const((:segbuf,))
+│   %8  = Core.apply_type(Core.NamedTuple, %7)::Core.Const(NamedTuple{(:segbuf,)})
+│   %9  = Base.getproperty(wa, :segs)::Any
+│   %10 = Core.tuple(%9)::Tuple{Any}
+│   %11 = (%8)(%10)::NamedTuple{(:segbuf,), _A} where _A<:Tuple{Any}
+# integrator is untyped
+│   %12 = Base.getproperty(ev, :integrator)::Any
+│   %13 = Core.kwfunc(%12)::Any
+│   %14 = Base.getproperty(ev, :integrator)::Any
+│         (num = (%13)(%11, %14, f))
+│         Base.setproperty!(wa, :objective, MSEP.justW)
+│   %17 = (:segbuf,)::Core.Const((:segbuf,))
+│   %18 = Core.apply_type(Core.NamedTuple, %17)::Core.Const(NamedTuple{(:segbuf,)})
+│   %19 = Base.getproperty(wa, :segs)::Any
+│   %20 = Core.tuple(%19)::Tuple{Any}
+│   %21 = (%18)(%20)::NamedTuple{(:segbuf,), _A} where _A<:Tuple{Any}
+│   %22 = Base.getproperty(ev, :integrator)::Any
+│   %23 = Core.kwfunc(%22)::Any
+│   %24 = Base.getproperty(ev, :integrator)::Any
+│         (den = (%23)(%21, %24, f))
+│   %26 = (num / den)::Any
+└──       return %26
+
+
+# from inside zhat
+f(z) = ev.f(z, wa)
+wa.objective = MSEP.WZ
+@code_warntype ev.integrator(f, segbuf=wa.segs)
+MethodInstance for (::Core.var"#Any##kw")(::NamedTuple{(:segbuf,), Tuple{Vector{QuadGK.Segment{Float64, Float64, Float64}}}}, ::AgnosticAGK, ::var"#f#6"{MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}, LogisticSimpleEvaluator{Float64}})
+  from (::Core.var"#Any##kw")(::Any, aagk::AgnosticAGK, f) in MSEP at c:\Users\rdboylan\Documents\BP\MSEP\src\MSEP.jl:104
+Arguments
+  _::Core.Const(Core.var"#Any##kw"())
+  @_2::NamedTuple{(:segbuf,), Tuple{Vector{QuadGK.Segment{Float64, Float64, Float64}}}}
+  aagk::AgnosticAGK
+  f::var"#f#6"{MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}, LogisticSimpleEvaluator{Float64}}
+Locals
+  segbuf::Vector{QuadGK.Segment{Float64, Float64, Float64}}
+  @_6::Vector{QuadGK.Segment{Float64, Float64, Float64}}
+Body::Any
+1 ─ %1  = Base.haskey(@_2, :segbuf)::Core.Const(true)
+│         Core.typeassert(%1, Core.Bool)
+│         (@_6 = Base.getindex(@_2, :segbuf))
+└──       goto #3
+2 ─       Core.Const(:(@_6 = MSEP.nothing))
+3 ┄ %6  = @_6::Vector{QuadGK.Segment{Float64, Float64, Float64}}
+│         (segbuf = %6)
+│   %8  = (:segbuf,)::Core.Const((:segbuf,))
+│   %9  = Core.apply_type(Core.NamedTuple, %8)::Core.Const(NamedTuple{(:segbuf,)})
+│   %10 = Base.structdiff(@_2, %9)::Core.Const(NamedTuple())
+│   %11 = Base.pairs(%10)::Core.Const(Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}())
+│   %12 = Base.isempty(%11)::Core.Const(true)
+│         Core.typeassert(%12, Core.Bool)
+└──       goto #5
+4 ─       Core.Const(:(Base.kwerr(@_2, aagk, f)))
+5 ┄ %16 = MSEP.:(var"#_#5")(segbuf, aagk, f)::Any
+└──       return %16
+
+# and ultimately this is what is evaluated for a single point
+@code_warntype f(0.0)
+MethodInstance for (::var"#f#7"{MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}, LogisticSimpleEvaluator{Float64}})(::Float64)
+  from (::var"#f#7")(z) in Main at c:\Users\rdboylan\Documents\BP\MSEP\src\test1.jl:46
+Arguments
+  #self#::var"#f#7"{MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}, LogisticSimpleEvaluator{Float64}}
+  z::Float64
+Body::Any
+1 ─ %1 = Core.getfield(#self#, :ev)::LogisticSimpleEvaluator{Float64}
+│   %2 = Base.getproperty(%1, :f)::Any
+│   %3 = Core.getfield(#self#, :wa)::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+│   %4 = (%2)(z, %3)::Any
+└──      return %4
+
+# same thing with less indirection is much more useful
+# all the types look good
+@code_warntype ev.f(0.0, wa)
+MethodInstance for MSEP.zSQdensity(::Float64, ::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}})
+  from zSQdensity(z::Float64, wa::TWorkArea) where TWorkArea in MSEP at c:\Users\rdboylan\Documents\BP\MSEP\src\logistic_simple_evaluator.jl:94
+Static Parameters
+  TWorkArea = MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+Arguments
+  #self#::Core.Const(MSEP.zSQdensity)
+  z::Float64
+  wa::MSEP.WorkArea{LogisticSimpleEvaluator{Float64}}
+Locals
+  @_4::Union{Nothing, Tuple{UInt64, UInt64}}
+  d::Float64
+  objective::MSEP.Objective
+  dat::DataFrame
+  ev::LogisticSimpleEvaluator{Float64}
+  i::UInt64
+  cd::Float64
+  Y::Bool
+Body::Float64
+1 ──       Core.NewvarNode(:(@_4))
+│          Core.NewvarNode(:(d))
+│          (ev = Base.getproperty(wa, :evaluator))
+│    %4  = Base.getproperty(wa, :dat)::DataFrame
+│    %5  = Base.convert(MSEP.DataFrame, %4)::DataFrame
+│          (dat = Core.typeassert(%5, MSEP.DataFrame))
+│    %7  = Base.getproperty(wa, :objective)::MSEP.Objective
+│    %8  = Base.convert(MSEP.Objective, %7)::MSEP.Objective
+│          (objective = Core.typeassert(%8, MSEP.Objective))
+│    %10 = (objective == MSEP.justZ)::Bool
+└───       goto #3 if not %10
+2 ──       goto #4
+3 ── %13 = (objective == MSEP.just1)::Bool
+└───       goto #5 if not %13
+4 ┄─ %15 = Core.apply_type(Base.Val, 2)::Core.Const(Val{2})
+│    %16 = (%15)()::Core.Const(Val{2}())
+│    %17 = Base.literal_pow(MSEP.:^, z, %16)::Float64
+│    %18 = (-0.5 * %17)::Float64
+│          (d = MSEP.exp(%18))
+└───       goto #6
+5 ── %21 = Base.getproperty(ev, :λ)::Float64
+│    %22 = (2.0 * %21)::Float64
+│    %23 = (1.0 - %22)::Float64
+│    %24 = Core.apply_type(Base.Val, 2)::Core.Const(Val{2})
+│    %25 = (%24)()::Core.Const(Val{2}())
+│    %26 = Base.literal_pow(MSEP.:^, z, %25)::Float64
+│    %27 = (-0.5 * %23 * %26)::Float64
+└───       (d = MSEP.exp(%27))
+6 ┄─ %29 = Base.getproperty(wa, :i_start)::UInt64
+│    %30 = Base.getproperty(wa, :i_end)::UInt64
+│    %31 = (%29:%30)::UnitRange{UInt64}
+│          (@_4 = Base.iterate(%31))
+│    %33 = (@_4 === nothing)::Bool
+│    %34 = Base.not_int(%33)::Bool
+└───       goto #12 if not %34
+7 ┄─ %36 = @_4::Tuple{UInt64, UInt64}
+│          (i = Core.getfield(%36, 1))
+│    %38 = Core.getfield(%36, 2)::UInt64
+│    %39 = Base.getproperty(wa, :Y)::BitVector
+│          (Y = Base.getindex(%39, i))
+│    %41 = Base.getproperty(ev, :σ)::Float64
+│    %42 = (z * %41)::Float64
+│    %43 = Base.getproperty(ev, :k)::Float64
+│    %44 = (%42 + %43)::Float64
+│          (cd = MSEP.logistic(%44))
+└───       goto #9 if not Y
+8 ──       (d = d * cd)
+└───       goto #10
+9 ── %49 = d::Float64
+│    %50 = (1.0 - cd)::Float64
+└───       (d = %49 * %50)
+10 ┄       (@_4 = Base.iterate(%31, %38))
+│    %53 = (@_4 === nothing)::Bool
+│    %54 = Base.not_int(%53)::Bool
+└───       goto #12 if not %54
+11 ─       goto #7
+12 ┄ %57 = (objective == MSEP.justZ)::Bool
+└───       goto #14 if not %57
+13 ─       goto #15
+14 ─ %60 = (objective == MSEP.WZ)::Bool
+└───       goto #16 if not %60
+15 ┄       (d = d * z)
+16 ┄       return d

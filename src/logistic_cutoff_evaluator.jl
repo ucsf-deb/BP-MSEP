@@ -4,8 +4,8 @@ except that it only integrates over |z| > λ.
 It is likely that both parts will be extremely small.
 """
 struct CutoffAGK
-    λ
-    order
+    λ::Float64
+    order::Int
 end
 
 function (cagk::CutoffAGK)(f; segbuf=nothing)
@@ -29,7 +29,7 @@ end
 Evaluates data as produced by `maker()` with a cutoff mixed logistic model
 We only use `Y`, a binary indicator, since the model has no observed covariates.
 """
-mutable struct  LogisticCutoffEvaluator{TParam} <: CutoffEvaluator
+mutable struct  LogisticCutoffEvaluator{TParam,TObjFn} <: CutoffEvaluator
     "cutoff parameter"
     # const requires julia 1.8+
     const λ::TParam
@@ -41,12 +41,12 @@ mutable struct  LogisticCutoffEvaluator{TParam} <: CutoffEvaluator
     const σ::TParam
 
     "order for the numerical integration"
-    const integration_order::Integer
+    const integration_order::Int
 
     ## The constructor is responsible for the following
     "f(z, workarea)= conditional density*normal density
     or, if withZ is true, z*...."
-    const f
+    const f::TObjFn
 
     "Short name of primary estimand, e.g., zSQ"
     const targetName::String
@@ -74,7 +74,7 @@ integrator, we do not call special weight functions.
 
 For the same reasons zsimp is NOT DEFINED for LogisticCutoffEvaluator
 """
-function zhat(ev::LogisticCutoffEvaluator, wa::WorkArea)
+function zhat(ev::LogisticCutoffEvaluator, wa::TWorkArea) where {TWorkArea}
     f(z) = ev.f(z, wa)
     wa.objective = justZ
     num = ev.integrator(f, segbuf=wa.segs)
@@ -100,8 +100,6 @@ ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
 function worker(command::Channel, ml::MultiLevel, ev::LogisticCutoffEvaluator)
-    #write(stderr, "Worker launched on thread $(Threads.threadid()).")
-    zip::UInt = 0
     wa = WorkArea(ml.individuals, ev)
     while true
         i0, i1, iCluster = take!(command)

@@ -14,7 +14,7 @@ mutable struct  LogisticSimpleEvaluator{TParam,TObjFn,TIntegrator} <: Evaluator
     const σ::TParam
 
     "order for the numerical integration"
-    const integration_order::Integer
+    const integration_order::Int
 
     ## The constructor is responsible for the following
     "f(z, workarea)= w(z)*conditional density*normal density

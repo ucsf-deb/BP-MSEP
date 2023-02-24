@@ -51,3 +51,55 @@ end
 for x in Channel(stupid)
     println(x)
 end
+
+"Holds a list of pairs with an Evaluator Constructor as first argument and a list of λ values as the second"
+struct EVRequests
+    requests
+end
+function evrfeed(c::Channel, evr::EVRequests)
+    for (ctor, λs) in evr.requests
+        for λ in λs
+            put!(c, ctor(λ))
+        end
+    end
+end
+
+#= Implementation facts
+  1. For the definitions to be effective one must define 
+  `Base.iterate` not `iterate`.
+  2. Explicit references to iterate must also use `Base.iterate`.
+  The current code has no such references.
+  3. I tried returning the `Channel`'s iterator directly from
+  `Base.iterate(::EVRequests)`, hoping iteration would be
+  delegated to the `Channel` iterator.  But it still looked
+  for `Base.iterate(::EVRequest, state)` on the next iteration,
+  hence the current design.
+=#
+function Base.iterate(evr::EVRequests) 
+    f(c::Channel) = evrfeed(c, evr)
+    mychan = Channel(f)
+    x = take!(mychan)
+    if isnothing(x)
+        return nothing
+    end
+    return (x, mychan)
+end
+
+function Base.iterate(evr::EVRequests, chan)
+    if !isopen(chan)
+        return nothing
+    end
+    x = take!(chan)
+    if isnothing(x)
+        return nothing
+    end
+    return (x, chan)
+end
+
+myr = EVRequests([(exp, (0.4, 1.0))])
+for x in myr
+    println(x)
+end
+    
+    
+end

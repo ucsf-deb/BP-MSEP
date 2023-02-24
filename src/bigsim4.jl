@@ -42,15 +42,6 @@ It seems safest to stick with the facilities of the base language, which imply e
 
 There is a constructor for `Channel` that uses a function taking only a `Channel` instance as an argument, and the result is itself iterable.  So something fairly clean should be possible.
 =#
-function stupid(c::Channel)
-    for i in 1:3
-        put!(c, i)
-    end
-    put!(c, "all done")
-end
-for x in Channel(stupid)
-    println(x)
-end
 
 "Holds a list of pairs with an Evaluator Constructor as first argument and a list of λ values as the second"
 struct EVRequests
@@ -78,11 +69,7 @@ end
 function Base.iterate(evr::EVRequests) 
     f(c::Channel) = evrfeed(c, evr)
     mychan = Channel(f)
-    x = take!(mychan)
-    if isnothing(x)
-        return nothing
-    end
-    return (x, mychan)
+    return Base.iterate(evr, mychan)
 end
 
 function Base.iterate(evr::EVRequests, chan)
@@ -99,7 +86,4 @@ end
 myr = EVRequests([(exp, (0.4, 1.0))])
 for x in myr
     println(x)
-end
-    
-    
 end

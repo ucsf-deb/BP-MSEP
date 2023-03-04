@@ -86,11 +86,7 @@ function Base.iterate(evr::EVRequests, chan)
     return (x, chan)
 end
 
-"mimic the generator functions for the other types for absolute weights"
-function LogisticABEvaluator(λ, k, σ, integration_order=7)
-    LogisticSimpleEvaluator(λ, k, σ, integration_order, wDensity((z, λ)-> λ*abs(z)), "zAB", 
-    AgnosticAGK(integration_order), "AGK", "Adaptive Gauss-Kronrod")
-end
+
 #=
 Here are the current constructor calls
 "Default to zSQ evaluator"

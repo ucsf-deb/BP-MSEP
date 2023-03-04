@@ -40,6 +40,12 @@ function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
     AgnosticAGK(integration_order), "AGK", "Adaptive Gauss-Kronrod")
 end
 
+"Return evaluator using |z| for the weight function"
+function LogisticABEvaluator(λ, k, σ, integration_order=7)
+    LogisticSimpleEvaluator(λ, k, σ, integration_order, wDensity((z, λ)-> λ*abs(z)), "zAB", 
+    AgnosticAGK(integration_order), "AGK", "Adaptive Gauss-Kronrod")
+end
+
 "enumerate desired calculation for WorkArea"
 @enum Objective justZ justW WZ just1
 

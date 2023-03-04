@@ -1,4 +1,4 @@
-"""
+#=
 Conduct an enormous grid of simulations.
 This is *not* a regular part of the MSEP package; it is a user of that package.
 
@@ -29,7 +29,9 @@ Note the absence of covariates, which potentially could reduce this to the separ
     2b. Since computing  ``p(Y)`` is hard, just get z|Y numerically.
 
 Also, we are only doing symmetric cases: no AS predictor, and no use of asymmetric measures of MSEP.
-"""
+=#
+
+using MSEP
 
 #=
 We need a way to loop over all possible generators.  The generators have slightly different parameters, since BP has no λ.  Then again, BP can be obtained from one of the other generators via zsimp, assuming the generator is not a cutoff generator.
@@ -46,11 +48,12 @@ There is a constructor for `Channel` that uses a function taking only a `Channel
 "Holds a list of pairs with an Evaluator Constructor as first argument and a list of λ values as the second"
 struct EVRequests
     requests
+    order::Int  # default order for quadrature
 end
 function evrfeed(c::Channel, evr::EVRequests)
     for (ctor, λs) in evr.requests
         for λ in λs
-            put!(c, ctor(λ))
+            put!(c, (k, σ)->ctor(λ, k, σ, evr.order))
         end
     end
 end
@@ -83,7 +86,35 @@ function Base.iterate(evr::EVRequests, chan)
     return (x, chan)
 end
 
-myr = EVRequests([(exp, (0.4, 1.0))])
+"mimic the generator functions for the other types for absolute weights"
+function LogisticABEvaluator(λ, k, σ, integration_order=7)
+    LogisticSimpleEvaluator(λ, k, σ, integration_order, wDensity((z, λ)-> λ*abs(z)), "zAB", 
+    AgnosticAGK(integration_order), "AGK", "Adaptive Gauss-Kronrod")
+end
+#=
+Here are the current constructor calls
+"Default to zSQ evaluator"
+function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
+
+function LogisticCutoffEvaluator(λ, k, σ, integration_order=7)
+
+### this makes the inner function that in turn makes the evaluator I want
+### previous calls were to functions, while this calls the primary structure defntn
+# note the capture of λ in the function i the argument of wDensity
+function make_zAB_generator(; λ=1.6, k=-1.0, order=5)
+    function (σ)
+        LogisticSimpleEvaluator(λ, k, σ, order, wDensity((z, λ)-> λ*abs(z)), "zAB", 
+        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
+    end
+end
+=#
+
+myr = EVRequests([
+    (LogisticSimpleEvaluator, (0.2, 0.3, 0.4, 0.5)),
+    (LogisticABEvaluator, (1.4, 1.6, 1.8)),
+    (LogisticCutoffEvaluator, (1.5, 1.75, 2.0))
+    ],
+     7)
 for x in myr
-    println(x)
+    println(description(x(-1.0, 1.0)))
 end

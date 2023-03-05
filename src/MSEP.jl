@@ -25,7 +25,7 @@ export name, description, name_with_suffix, zhat, zsimp
 export zSQdensity, wDensity, make_zAB_generator, make_zAS_generator, make_zCT_generator
 export simulate, bigsim, msep, msepabs, bigbigsim, big3sim, rearrange, twoToOne
 
-# includes at bottom
+# includes at bottom since they use some of symbols defined earlier
 
 """
 Use Gauss-Hermite quadrature to evaluate a function.

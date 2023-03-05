@@ -50,6 +50,11 @@ struct EVRequests
     requests
     order::Int  # default order for quadrature
 end
+
+function Base.length(evr::EVRequests)
+    sum(length(λs) for (_, λs) in evr.requests)
+end
+
 function evrfeed(c::Channel, evr::EVRequests)
     for (ctor, λs) in evr.requests
         for λ in λs
@@ -116,3 +121,4 @@ myr = EVRequests([
 for x in myr
     println(description(x(-1.0, 1.0)))
 end
+println("Total of ", length(myr), " estimands.")

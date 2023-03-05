@@ -106,6 +106,8 @@ end
 =#
 
 myr = EVRequests([
+    # The first needs extra indirection to ignore λ
+    ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),
     (LogisticSimpleEvaluator, (0.2, 0.3, 0.4, 0.5)),
     (LogisticABEvaluator, (1.4, 1.6, 1.8)),
     (LogisticCutoffEvaluator, (1.5, 1.75, 2.0))

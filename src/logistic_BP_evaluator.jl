@@ -6,7 +6,9 @@ The same estimate is available from zsimp for any LogisticSimpleEvaluator;
 this class and c'tor provides one with a good description and
 access to zBP via zhat for consistency with other evaluators.
 
-**Neither zsimp() nor worker() are defined for LogisticBPEvaluator.**
+**zsimp() is not defined for LogisticBPEvaluator.**
+
+The generic worker() should work OK for this type.
 
 This struct relies on the inner evaluator being setup correctly,
 but does not enforce that.  Use the corresponding constructor,
@@ -28,7 +30,7 @@ end
 
 
 """return fuller description of evaluator. full=true gives more detail
-Must override default behavior since λ is not present.
+Must override default behavior since λ is not relevant.
 """
 function description(ev::TBPEvaluator, full=false)::String where {TBPEvaluator <: LogisticBPEvaluator}
     rev = ev.inner #real evaluator

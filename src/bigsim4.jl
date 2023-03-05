@@ -14,7 +14,7 @@ So, we vary the following:
     2. λ  for predictor in most causes
     3. Cutoff τ for MSEP
     4. σ
-    5. cluster size
+    5. cluster size (and number of clusters)
     6. μ
 
 Chronologically, these fall into 3 groups:

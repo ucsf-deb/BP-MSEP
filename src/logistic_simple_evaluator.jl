@@ -212,7 +212,7 @@ i0<0 means there is no more work and the thread should exit.
 ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
-function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
+function worker(command::Channel, ml::MultiLevel, ev::TEvaluator) where {TEvaluator <: Evaluator}
     wa = WorkArea(ml.individuals, ev)
     while true
         i0, i1, iCluster = take!(command)
@@ -225,11 +225,11 @@ function worker(command::Channel, ml::MultiLevel, ev::LogisticSimpleEvaluator)
         wa.i_cluster = iCluster
         # do long-running calculations outside the lock
         zh = zhat(ev, wa)
-        zs = zsimp(ev, wa)
+        #zs = zsimp(ev, wa)
         # DataFrame is thread-safe for reading, but not writing
         lock(ml.cluster_lock) do
             ml.clusters.zhat[iCluster] = zh
-            ml.clusters.zsimp[iCluster] = zs
+            #ml.clusters.zsimp[iCluster] = zs
         end
     end
 end

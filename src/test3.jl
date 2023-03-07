@@ -2,11 +2,6 @@ struct TestR
     requests
 end
 
-function Base.iterate(t::TestR)
-    f(c::Channel) = test_helper(c, t)
-    chan = Channel(f)
-    return Base.iterate(t, chan)
-end
 
 function test_helper(chan::Channel, t::TestR)
     for (ctor, λs) in t.requests
@@ -15,6 +10,13 @@ function test_helper(chan::Channel, t::TestR)
         end
     end
 end
+
+function Base.iterate(t::TestR)
+    f(c::Channel) = test_helper(c, t)
+    chan = Channel(f)
+    return Base.iterate(t, chan)
+end
+
 
 function Base.iterate(t::TestR, chan)
     if !isopen(chan)

@@ -6,7 +6,7 @@ end
 function test_helper(chan::Channel, t::TestR)
     for (ctor, λs) in t.requests
         for λ in λs
-            put!(chan, (x)->ctor(λ+x))
+            put!(chan, λ)
         end
     end
 end
@@ -31,7 +31,7 @@ end
 
 function outside(t::TestR)
     for x in t
-        print(x(-1.0),", ")
+        print(x,", ")
     end
     print("\n")
 end

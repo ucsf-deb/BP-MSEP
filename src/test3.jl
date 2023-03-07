@@ -35,14 +35,15 @@ end
 
 function outside(t::TestR)
     r = Array{String}(undef, length(t))
+    i = 1
     for x in t
-        print(x,", ")
+        r[i] = string(x)
     end
-    print("\n")
+    return r
 end
 
 myt = TestR([(exp, (1.4,)), ])
-outside(myt)
+println(outside(myt))
 #=
 for (i, f) in enumerate(myt)
     print(i, ": ", f(-1 ), ", ")

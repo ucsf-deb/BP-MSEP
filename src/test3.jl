@@ -8,6 +8,14 @@ function Base.iterate(t::TestR)
     return Base.iterate(t, chan)
 end
 
+function test_helper(chan::Channel, t::TestR)
+    for (ctor, λs) in t.requests
+        for λ in λs
+            put!(chan, (x)->ctor(λ+x))
+        end
+    end
+end
+
 function Base.iterate(t::TestR, chan)
     if !isopen(chan)
         return nothing
@@ -17,14 +25,6 @@ function Base.iterate(t::TestR, chan)
         return nothing
     end
     return (x, chan)
-end
-
-function test_helper(chan::Channel, t::TestR)
-    for (ctor, λs) in t.requests
-        for λ in λs
-            put!(chan, (x)->ctor(λ+x))
-        end
-    end
 end
 
 function outside(t::TestR)

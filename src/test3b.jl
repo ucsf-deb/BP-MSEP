@@ -14,7 +14,7 @@ function evrfeed(c::Channel, evr::EVRequests)
     for (ctor, λs) in evr.requests
         for λ in λs
         #    put!(c, (k, σ)->ctor(λ, k, σ, 7 )) # last arg was evr.order
-        put!(c, λ)
+            put!(c, λ)
         end
     end
 end

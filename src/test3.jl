@@ -34,7 +34,7 @@ function outside(t::TestR)
     print("\n")
 end
 
-myt = TestR([(exp, [5, 0, 1]), ])
+myt = TestR([(exp, (5,)), ])
 outside(myt)
 #=
 for (i, f) in enumerate(myt)

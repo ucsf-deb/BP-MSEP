@@ -29,8 +29,12 @@ function Base.iterate(t::TestR, chan)
     return (x, chan)
 end
 
+function Base.length(t::TestR)
+    sum(length(λs) for (_, λs) in t.requests)
+end
+
 function outside(t::TestR)
-    r = Array{String}(undef, 1)
+    r = Array{String}(undef, length(t))
     for x in t
         print(x,", ")
     end

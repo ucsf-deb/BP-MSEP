@@ -30,6 +30,7 @@ function Base.iterate(t::TestR, chan)
 end
 
 function outside(t::TestR)
+    r = Array{String}(undef, 1)
     for x in t
         print(x,", ")
     end

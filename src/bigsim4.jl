@@ -9,6 +9,7 @@ Created: 2023-02-08
 The mission:
 For logistic model.  Calculate MSEP for various values of abs(z)>tau (values below) for all the predictors (BP, SQ [lam= 0.2, 0.3, 0.4, 0.5], AB [lam=1.4, 1.6, 1.8], CT [lam=1.5, 1.75, 2]).   Do simulation for sigma=0.25, 0.5, 0.75, 1, and 1.25 and plot ratio of MSEP for z_BP divided by MSEP for each of the weighted predictors versus sigma and for each cutoff separately (tau=0, 1.28, 1.5, 1.645, 2, 2.33, and 2.5).  Repeat for cluster sizes of 5, 7, 20, and 100.   Repeat for mu=-1 and -2.   Perhaps just create an overall database with columns for MSEP for each predictor (so 11 columns plus columns to keep track of other parameters) and different rows for values of sigma, tau, cluster size and mu.  
 
+
 So, we vary the following:
     1. predictor
     2. λ  for predictor in most causes
@@ -32,6 +33,7 @@ Also, we are only doing symmetric cases: no AS predictor, and no use of asymmetr
 =#
 
 using MSEP
+using NamedArrays
 
 #=
 We need a way to loop over all possible generators.  The generators have slightly different parameters, since BP has no λ.  Then again, BP can be obtained from one of the other generators via zsimp, assuming the generator is not a cutoff generator.
@@ -53,6 +55,27 @@ end
 
 function Base.length(evr::EVRequests)
     sum(length(λs) for (_, λs) in evr.requests)
+end
+
+"return brief description of each iterator"
+function names(evr::EVRequests)
+    # easiest way is to instantiate with random parameters
+    r = Array{String}(undef, length(evr))
+    # enumerate doesn't work on evr
+    # I think it fails because it makes assuptions about the iteration state
+    # that aren't true for evr, which uses a Channel.
+    i = 1
+    for f in evr
+        ev = f(0.0, 0.0)
+        nm = name(ev)
+        if nm == "zBP"
+            r[i] = nm
+        else
+            r[i] = nm * "(λ=" * string(ev.λ) * ")"
+        end
+        i += 1
+    end
+    return r            
 end
 
 function evrfeed(c::Channel, evr::EVRequests)
@@ -118,7 +141,57 @@ myr = EVRequests([
     (LogisticCutoffEvaluator, (1.5, 1.75, 2.0))
     ],
      7)
+
+#=
 for x in myr
     println(description(x(-1.0, 1.0)))
 end
 println("Total of ", length(myr), " estimands.")
+=#
+
+"""
+Info at the level of a particular specification of the dataset
+There will be multiple times the dataset is simulated
+"""
+mutable struct DatInfo
+    "are all subvariants of estimators complete"
+    done::Bool
+
+    "number of clusters in individual simulated dataset"
+    nClusters::Int
+
+    "numer of simulated datasets"
+    nSim::Int
+end
+
+function DatInfo(nClusters::Int)
+    DatInfo(false, nClusters, 0)
+end
+
+"recommended number of clusters to simulate for given cluster size"
+function nClusters(clusterSize)::Int
+    nT = Threads.nthreads()  # maybe -1 to allow for coordination?
+    targetPopulation = 4000
+    maxClusters = round(500/nT)*nT
+    fClusters = targetPopulation/clusterSize
+    # round to nearest nT
+    nClusters = round(fClusters/nT)*nT
+    return clamp(nClusters, 5, maxClusters)
+end
+"""
+Simulate over the range of scenarios given by the arguments,
+which are orthogonal.
+Return estimated MSEP and its sd.
+Keep performing simulations until uncertainty in MSEP < maxsd
+"""
+function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
+    σs=[0.25, 0.5, 0.75, 1.0, 1.25], 
+    τs=[0.0, 1.28, 1.5, 1.645, 2.0, 2.33, 2.5],
+    clusterSizes=[5, 7, 20, 100],
+    maxsd = 0.5)
+    topSize = map(length, (μs, σs, clusterSizes) )
+    dat = NamedArray(falses(topSize), (string.(μs), string.(σs), string.(clusterSizes)), ("μ", "σ", "clsize") )
+    return dat
+end
+
+println(names(myr))

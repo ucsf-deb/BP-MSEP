@@ -42,7 +42,10 @@ function outside(t::TestR)
     return r
 end
 
-myt = TestR([(exp, (1.4,)), ])
+myt = TestR([(exp, (1.4,)) ])
+
+#using InteractiveUtils
+#@code_warntype outside(myt)
 println(outside(myt))
 #=
 for (i, f) in enumerate(myt)

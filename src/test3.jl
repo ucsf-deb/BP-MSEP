@@ -19,9 +19,9 @@ end
 
 
 function Base.iterate(t::TestR, chan)
-    # if !isopen(chan)
-    #     return nothing
-    # end
+    if !isopen(chan)
+        return nothing
+    end
     x = take!(chan)
     if isnothing(x)
         return nothing

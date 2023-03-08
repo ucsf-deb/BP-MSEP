@@ -9,6 +9,7 @@ function test_helper(chan::Channel, t::TestR)
             put!(chan, λ)
         end
     end
+    print("Exiting test_helper.\n")
 end
 
 function Base.iterate(t::TestR)
@@ -19,6 +20,7 @@ end
 
 
 function Base.iterate(t::TestR, chan)
+    println("Iterating.")
     if !isopen(chan)
         return nothing
     end

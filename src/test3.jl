@@ -36,7 +36,7 @@ end
 function outside(t::TestR)
     r = Array{String}(undef, length(t))
     i = 1
-    for x in t
+    for x in collect(t)
         r[i] = string(x)
         i += 1
     end

@@ -21,7 +21,7 @@ end
 
 function Base.iterate(t::TestR, chan)
     println("Iterating.")
-    sleep(0.4)
+    sleep(0.001)
     if !isopen(chan)
         return nothing
     end

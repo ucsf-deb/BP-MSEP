@@ -13,15 +13,15 @@ end
 
 function Base.iterate(t::TestR)
     f(c::Channel) = test_helper(c, t)
-    chan = Channel(f, 1)
+    chan = Channel(f)
     return Base.iterate(t, chan)
 end
 
 
 function Base.iterate(t::TestR, chan)
-    if !isopen(chan)
-        return nothing
-    end
+    # if !isopen(chan)
+    #     return nothing
+    # end
     x = take!(chan)
     if isnothing(x)
         return nothing

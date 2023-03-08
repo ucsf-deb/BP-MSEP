@@ -38,6 +38,7 @@ function outside(t::TestR)
     i = 1
     for x in t
         r[i] = string(x)
+        i += 1
     end
     return r
 end

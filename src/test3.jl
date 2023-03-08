@@ -13,7 +13,7 @@ end
 
 function Base.iterate(t::TestR)
     f(c::Channel) = test_helper(c, t)
-    chan = Channel(f)
+    chan = Channel(f, 1)
     return Base.iterate(t, chan)
 end
 

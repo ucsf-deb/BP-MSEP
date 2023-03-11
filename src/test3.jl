@@ -12,24 +12,41 @@ function test_helper(chan::Channel, t::TestR)
     #print("Exiting test_helper.\n")
 end
 
+#=
+Earlier implementations attempted to pull items from
+the channel use `take!` while guarding with `isopen`.  But the channel kept getting closed after `isopen` but before 
+`take!`, throwing an error.  test_helper executes in a
+coroutine (Task) which does not guarantee an particular
+sequencing of its code, the code that closes the channel after
+the task exits, and  the tests in the iterator.
+
+So instead I use a channel iterator to control the nastiness.
+But the iteration framework will always call
+iterate(::TestR, state) if I iterate on TestR, and so 
+I can not simply return the channel, or an iterator on the channel.  And since iterating the channel requires the 
+channel as well as the channel state, the iterator state
+for TestR must include both.
+=#
 function Base.iterate(t::TestR)
     f(c::Channel) = test_helper(c, t)
     chan = Channel(f)
-    return Base.iterate(t, chan)
+    r = iterate(chan)
+    if isnothing(r)
+        return nothing
+    end
+    return (r[1], (chan, r[2]))
 end
 
 
-function Base.iterate(t::TestR, chan)
+function Base.iterate(t::TestR, state)
     #println("Iterating.")
-    sleep(0.001)
-    if !isopen(chan)
+    r = iterate(state[1], state[2])
+    if isnothing(r)
         return nothing
     end
-    x = take!(chan)
-    if isnothing(x)
-        return nothing
-    end
-    return (x, chan)
+    # I think (r[1], state) would also work for next
+    # But safer to treat channel state as opaque.
+    return (r[1], (state[1], r[2]))
 end
 
 function Base.length(t::TestR)

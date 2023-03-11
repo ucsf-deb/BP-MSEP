@@ -89,30 +89,49 @@ end
 #= Implementation facts
   1. For the definitions to be effective one must define 
   `Base.iterate` not `iterate`.
-  2. Explicit references to iterate must also use `Base.iterate`.
-  The current code has no such references.
+  2. Previously I found explicit references to iterate must also use `Base.iterate`.  But now I find VSCode complains about them, and they do not seem
+  necessary.
   3. I tried returning the `Channel`'s iterator directly from
   `Base.iterate(::EVRequests)`, hoping iteration would be
   delegated to the `Channel` iterator.  But it still looked
   for `Base.iterate(::EVRequest, state)` on the next iteration,
   hence the current design.
+
+Earlier implementations attempted to pull items from
+the channel use `take!` while guarding with `isopen`.  But the channel kept getting closed after `isopen` but before 
+`take!`, throwing an error.  evrfeed executes in a
+coroutine (Task) which does not guarantee an particular
+sequencing of its code, the code that closes the channel after
+the task exits, and  the tests in the iterator.
+
+So instead I use a channel iterator to control the nastiness.
+But the iteration framework will always call
+iterate(::EVRequests, state) if I iterate on EVReqiests, and so 
+I can not simply return the channel, or an iterator on the channel.  And since iterating the channel requires the 
+channel as well as the channel state, the iterator state
+for EVRequests must include both.
+
+See https://discourse.julialang.org/t/iterator-says-channel-is-closed/95702/3
+and the test3.jl code for more on these issues.
 =#
 function Base.iterate(evr::EVRequests) 
     f(c::Channel) = evrfeed(c, evr)
     mychan = Channel(f)
-    return Base.iterate(evr, mychan)
+    r = iterate(mychan)
+    if isnothing(r)
+        return nothing
+    end
+    return (r[1], (mychan, r[2]))
 end
 
-function Base.iterate(evr::EVRequests, chan)
-    sleep(0.001) # needed to avoid a race
-    if !isopen(chan)
+function Base.iterate(evr::EVRequests, state)
+    r = iterate(state[1], state[2])
+    if isnothing(r)
         return nothing
     end
-    x = take!(chan)
-    if isnothing(x)
-        return nothing
-    end
-    return (x, chan)
+    # I think (r[1], state) would also work for next
+    # But safer to treat channel state as opaque.
+    return (r[1], (state[1], r[2]))
 end
 
 

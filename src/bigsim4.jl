@@ -104,6 +104,7 @@ function Base.iterate(evr::EVRequests)
 end
 
 function Base.iterate(evr::EVRequests, chan)
+    sleep(0.001) # needed to avoid a race
     if !isopen(chan)
         return nothing
     end

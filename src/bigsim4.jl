@@ -59,7 +59,7 @@ end
 
 "return brief description of each iterator"
 function names(evr::EVRequests)
-    # easiest way is to instantiate with random parameters
+    # easiest way to get names is to instantiate with random parameters
     r = Array{String}(undef, length(evr))
     # enumerate doesn't work on evr
     # I think it fails because it makes assuptions about the iteration state
@@ -106,7 +106,7 @@ the task exits, and  the tests in the iterator.
 
 So instead I use a channel iterator to control the nastiness.
 But the iteration framework will always call
-iterate(::EVRequests, state) if I iterate on EVReqiests, and so 
+iterate(::EVRequests, state) if I iterate on EVRequests, and so 
 I can not simply return the channel, or an iterator on the channel.  And since iterating the channel requires the 
 channel as well as the channel state, the iterator state
 for EVRequests must include both.
@@ -198,6 +198,8 @@ function nClusters(clusterSize)::Int
     nClusters = round(fClusters/nT)*nT
     return clamp(nClusters, 5, maxClusters)
 end
+
+
 """
 Simulate over the range of scenarios given by the arguments,
 which are orthogonal.
@@ -209,9 +211,20 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     τs=[0.0, 1.28, 1.5, 1.645, 2.0, 2.33, 2.5],
     clusterSizes=[5, 7, 20, 100],
     maxsd = 0.5)
+    #= Top of loop and data structures concerns the generated
+    datasets.
+    =#
     topSize = map(length, (μs, σs, clusterSizes) )
-    dat = NamedArray(falses(topSize), (string.(μs), string.(σs), string.(clusterSizes)), ("μ", "σ", "clsize") )
+    dat = NamedArray(
+        [ DatInfo(nClusters(nc)) for μ in μs, σ in σs, nc in clusterSizes],
+        (string.(μs), string.(σs), string.(clusterSizes)), ("μ", "σ", "clsize") )
     return dat
 end
 
-println(names(myr))
+d = big4sim(myr)
+# check the instances are independent
+d[1, 5, 1].done = true
+println(d)
+println(typeof(d))
+println(size(d))
+println(d[1, 5, :])

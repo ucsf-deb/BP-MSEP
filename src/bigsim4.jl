@@ -188,6 +188,39 @@ function DatInfo(nClusters::Int)
     DatInfo(false, nClusters, 0)
 end
 
+"""
+Info at the level of a particular estimator, nested within data spec.
+"""
+mutable struct EstimInfo
+    "are all variant of MSEP complete"
+    done::Bool
+
+    "max number of times this evaluated"
+    nCount::Int
+end
+
+function EstimInfo()
+    EstimInfo(false, 0)
+end
+
+"""
+Info for one particular measure of MSEP
+"""
+mutable struct MSEPInfo
+    "sufficient precision achieved"
+    done::Bool
+
+    "next iteration at which to check if precision is sufficient"
+    nextCheck::Int
+
+    "each simulation contributes one result, an overall MSEP for relevant set"
+    msep::Vector
+end
+
+function MSEPInfo(firstCheck=7)
+    MSEPInfo(false, firstCheck, Vector())
+end
+
 "recommended number of clusters to simulate for given cluster size"
 function nClusters(clusterSize)::Int
     nT = Threads.nthreads()  # maybe -1 to allow for coordination?
@@ -214,17 +247,33 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    topSize = map(length, (μs, σs, clusterSizes) )
+    estimNames = names(evr)
+    dims = ("μ", "σ", "clsize", "zhat", "τ")
+    # avoid using numbers as names, since they conflict
+    # with indexing. Convert to string instead.
+    dimnames = (string.(μs), string.(σs), string.(clusterSizes), estimNames,
+            string.(τs))
+    dimlen = length.(dimnames)
+    # fill puts the same object in every cell
+    # Comprehensions create distinct objects.
     dat = NamedArray(
         [ DatInfo(nClusters(nc)) for μ in μs, σ in σs, nc in clusterSizes],
-        (string.(μs), string.(σs), string.(clusterSizes)), ("μ", "σ", "clsize") )
-    return dat
+        dimnames[1:3], dims[1:3])
+
+    est = NamedArray(
+        [EstimInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames],
+        dimnames[1:4], dims[1:4])
+    est[2, 2, 1, 3].done = true
+    print(est[1, 2, 1, 3].done)
+    err = NamedArray(
+        [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
+            τ in τs],
+        dimnames[1:5], dims[1:5])
+    return est
 end
 
 d = big4sim(myr)
-# check the instances are independent
-d[1, 5, 1].done = true
-println(d)
 println(typeof(d))
 println(size(d))
-println(d[1, 5, :])
+println(d)
+

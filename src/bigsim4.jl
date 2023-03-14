@@ -34,6 +34,7 @@ Also, we are only doing symmetric cases: no AS predictor, and no use of asymmetr
 
 using MSEP
 using NamedArrays
+using Statistics
 
 #=
 We need a way to loop over all possible generators.  The generators have slightly different parameters, since BP has no λ.  Then again, BP can be obtained from one of the other generators via zsimp, assuming the generator is not a cutoff generator.
@@ -177,6 +178,9 @@ mutable struct DatInfo
     "are all subvariants of estimators complete"
     done::Bool
 
+    "should recompute done"
+    checkDone::Bool
+
     "number of clusters in individual simulated dataset"
     nClusters::Int
 
@@ -185,7 +189,7 @@ mutable struct DatInfo
 end
 
 function DatInfo(nClusters::Int)
-    DatInfo(false, nClusters, 0)
+    DatInfo(false, false, nClusters, 0)
 end
 
 """
@@ -195,12 +199,15 @@ mutable struct EstimInfo
     "are all variant of MSEP complete"
     done::Bool
 
+    "should recompute done"
+    checkDone::Bool
+
     "max number of times this evaluated"
     nCount::Int
 end
 
 function EstimInfo()
-    EstimInfo(false, 0)
+    EstimInfo(false, false, 0)
 end
 
 """
@@ -223,7 +230,87 @@ end
 
 "putting it all together"
 mutable struct SimInfo
+    "generating data"
     data::NamedArray{DatInfo,3}
+
+    "computing estimates"
+    zhat::NamedArray{EstimInfo,4}
+
+    "measures of performance"
+    msep::NamedArray{MSEPInfo,5}
+end
+
+function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes)
+    estimNames = names(evr)
+    dims = ("μ", "σ", "clsize", "zhat", "τ")
+    # avoid using numbers as names, since they conflict
+    # with indexing. Convert to string instead.
+    dimnames = (string.(μs), string.(σs), string.(clusterSizes), estimNames,
+            string.(τs))
+    dimlen = length.(dimnames)
+    # fill puts the same object in every cell
+    # Comprehensions create distinct objects.
+    dat = NamedArray(
+        [ DatInfo(nClusters(nc)) for μ in μs, σ in σs, nc in clusterSizes],
+        dimnames[1:3], dims[1:3])
+    est = NamedArray(
+        [EstimInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames],
+        dimnames[1:4], dims[1:4])
+    err = NamedArray(
+        [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
+            τ in τs],
+        dimnames[1:5], dims[1:5])
+    SimInfo(dat, est, err)
+end
+
+"record that a computation has achieved sufficient accuracy"
+function setDone!(si::SimInfo, i1, i2, i3, i4, i5)
+    si.msep[i1, i2, i3, i4, i5].done = true
+    si.zhat[i1, i2, i3, i4].checkDone = true
+    si.data[i1, i2, i3].checkDone = true
+end
+
+"report whether computation at a certain level is done"
+function isDone(si::SimInfo, i1, i2, i3, i4, i5)::Bool
+    si.msep[i1, i2, i3, i4, i5].done
+end
+
+function isDone(si::SimInfo, i1, i2, i3, i4)::Bool
+    if si.zhat[i1, i2, i3, i4].checkDone
+        si.zhat[i1, i2, i3, i4].done = all(
+            (i5)->isDone(si, i1, i2, i3, i4, i5), axes(si.msep, 5)
+        )
+        si.zhat[i1, i2, i3, i4].checkDone = false
+    end
+    return si.zhat[i1, i2, i3, i4, i5].done
+end
+
+function isDone(si::SimInfo, i1, i2, i3)::Bool
+    println("isDone($i1, $i2, $i3)")
+    if si.data[i1, i2, i3].checkDone
+        si.data[i1, i2, i3].done = all(
+            (i4)->isDone(si, i1, i2, i3, i4), axes(si.zhat, 4)
+        )
+        si.data[i1, i2, i3].checkDone = false
+    end
+    return si.data[i1, i2, i3].done
+end
+
+function isDone(si::SimInfo)
+    all((ic)->isDone(si, Tuple(ic)...), CartesianIndices(si.data))
+end
+
+"computations finished for given indices"
+function finished!(si:SimInfo, i1, i2, i3, i4, i5)
+    # nothing to do
+end
+
+function finished!(si:SimInfo, i1, i2, i3, i4)
+    si.zhat.nCount += 1
+end
+
+function finished!(si:SimInfo, i1, i2, i3)
+    si.data.nSim += 1
 end
 
 "recommended number of clusters to simulate for given cluster size"
@@ -248,70 +335,49 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     σs=[0.25, 0.5, 0.75, 1.0, 1.25], 
     τs=[0.0, 1.28, 1.5, 1.645, 2.0, 2.33, 2.5],
     clusterSizes=[5, 7, 20, 100],
-    maxsd = 0.5)
+    maxsd = 0.5)::SimInfo
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    estimNames = names(evr)
-    dims = ("μ", "σ", "clsize", "zhat", "τ")
-    # avoid using numbers as names, since they conflict
-    # with indexing. Convert to string instead.
-    dimnames = (string.(μs), string.(σs), string.(clusterSizes), estimNames,
-            string.(τs))
-    dimlen = length.(dimnames)
-    # fill puts the same object in every cell
-    # Comprehensions create distinct objects.
-    dat = NamedArray(
-        [ DatInfo(nClusters(nc)) for μ in μs, σ in σs, nc in clusterSizes],
-        dimnames[1:3], dims[1:3])
-    est = NamedArray(
-        [EstimInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames],
-        dimnames[1:4], dims[1:4])
-    err = NamedArray(
-        [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
-            τ in τs],
-        dimnames[1:5], dims[1:5])
+    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes)
     nIter = 1
-    while any(map((x)->!x.done, dat))
+    while !isDone(siminfo)
         for (i1, μ) in enumerate(μs), (i2, σ) in enumerate(σs), (i3, ncs) in enumerate(clusterSizes)
-            if dat[i1, i2, i3].done
+            if isDone(siminfo, i1, i2, i3)
                 continue
             end
             multi = maker(nclusters=dat[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
-            anyEstimDone = false # true if any estimator finished
             for (i4, fest) in enumerate(evr)
-                estiminfo = est[i1, i2, i3, i4]
-                if estiminfo.done
+                if isDone(siminfo, i1, i2, i3, i4)
                     continue
                 end
+                estiminfo = est[i1, i2, i3, i4]
                 # do the estimation. results in multi
                 ev = fest(μ, σ)
-                anyDone = false  # true if we complete any elements
                 for (i5, τ) in enumerate(τs)
-                    msepinfo = err[i1, i2, i3, i4, i5]
+                    msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
                     # even if things are good enough, this is cheap to compute
                     push!(msepinfo.msep, msepabs(multi.clusters, τ))
                     # check if done
                     if msepinfo.done || nIter != msepinfo.nextCheck
+                        finished!(siminfo, i1, i2, i3, i4, i5)
                         continue
                     end
                     sd = std(msepinfo.msep)
                     if sd/sqrt(nIter) ≤ maxsd
-                        msepinfo.done = true
-                        anyDone = true
+                        setDone!(siminfo, i1, i2, i3, i4, i5)
                     else
                         msepinfo.nextCheck = clamp((sd/maxsd)^2, nIter+5, nIter+100)
                     end
+                    finished!(siminfo, i1, i2, i3, i4, i5)
                 end
-                if anyDone
-                    estimInfo.done = all(map(x->x.done, err[i1, i2, i3, i4, :]))
-                    anyEstimDone |= estimInfo.done
-                end
+                finished!(siminfo, i1, i2, i3, i4)
             end
+            finished!(siminfo, i1, i2, i3)
         end
         nIter += 1
     end
-    return est
+    return siminfo
 end
 
 d = big4sim(myr)

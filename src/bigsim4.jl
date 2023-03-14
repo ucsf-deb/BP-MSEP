@@ -282,7 +282,7 @@ function isDone(si::SimInfo, i1, i2, i3, i4)::Bool
         )
         si.zhat[i1, i2, i3, i4].checkDone = false
     end
-    return si.zhat[i1, i2, i3, i4, i5].done
+    return si.zhat[i1, i2, i3, i4].done
 end
 
 function isDone(si::SimInfo, i1, i2, i3)::Bool
@@ -301,15 +301,15 @@ function isDone(si::SimInfo)
 end
 
 "computations finished for given indices"
-function finished!(si:SimInfo, i1, i2, i3, i4, i5)
+function finished!(si::SimInfo, i1, i2, i3, i4, i5)
     # nothing to do
 end
 
-function finished!(si:SimInfo, i1, i2, i3, i4)
+function finished!(si::SimInfo, i1, i2, i3, i4)
     si.zhat.nCount += 1
 end
 
-function finished!(si:SimInfo, i1, i2, i3)
+function finished!(si::SimInfo, i1, i2, i3)
     si.data.nSim += 1
 end
 
@@ -346,12 +346,12 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             if isDone(siminfo, i1, i2, i3)
                 continue
             end
-            multi = maker(nclusters=dat[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
+            multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
             for (i4, fest) in enumerate(evr)
                 if isDone(siminfo, i1, i2, i3, i4)
                     continue
                 end
-                estiminfo = est[i1, i2, i3, i4]
+                estiminfo = siminfo.zhat[i1, i2, i3, i4]
                 # do the estimation. results in multi
                 ev = fest(μ, σ)
                 for (i5, τ) in enumerate(τs)

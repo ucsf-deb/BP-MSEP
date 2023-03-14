@@ -32,6 +32,7 @@ Note the absence of covariates, which potentially could reduce this to the separ
 Also, we are only doing symmetric cases: no AS predictor, and no use of asymmetric measures of MSEP.
 =#
 
+using Dates
 using MSEP
 using NamedArrays
 using Statistics
@@ -186,10 +187,16 @@ mutable struct DatInfo
 
     "numer of simulated datasets"
     nSim::Int
+
+    "start times of each iteration"
+    starts::Vector{DateTime}
+
+    "end times of each iteration"
+    ends::Vector{DateTime}
 end
 
 function DatInfo(nClusters::Int)
-    DatInfo(false, false, nClusters, 0)
+    DatInfo(false, false, nClusters, 0, Vector{DateTime}(), Vector{DateTime}())
 end
 
 """
@@ -204,10 +211,16 @@ mutable struct EstimInfo
 
     "max number of times this evaluated"
     nCount::Int
+
+    "start times of each iteration"
+    starts::Vector{DateTime}
+
+    "end times of each iteration"
+    ends::Vector{DateTime}
 end
 
 function EstimInfo()
-    EstimInfo(false, false, 0)
+    EstimInfo(false, false, 0, Vector{DateTime}(), Vector{DateTime}())
 end
 
 """
@@ -300,16 +313,31 @@ function isDone(si::SimInfo)
     all((ic)->isDone(si, Tuple(ic)...), CartesianIndices(si.data))
 end
 
+"computations starting for given indices"
+function started!(si::SimInfo, i1, i2, i3, i4, i5)
+    # nothing to do. Not worth timing
+end
+
+function started!(si::SimInfo, i1, i2, i3, i4)
+    push!(si.zhat[i1, i2, i3, i4].starts, now())
+end
+
+function started!(si::SimInfo, i1, i2, i3)
+    push!(si.data[i1, i2, i3].starts, now())
+end
+
 "computations finished for given indices"
 function finished!(si::SimInfo, i1, i2, i3, i4, i5)
     # nothing to do
 end
 
 function finished!(si::SimInfo, i1, i2, i3, i4)
+    push!(si.zhat[i1, i2, i3, i4].ends, now())
     si.zhat.nCount += 1
 end
 
 function finished!(si::SimInfo, i1, i2, i3)
+    push!(si.data[i1, i2, i3].ends, now())
     si.data.nSim += 1
 end
 
@@ -346,15 +374,18 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             if isDone(siminfo, i1, i2, i3)
                 continue
             end
+            started!(siminfo, i1, i2, i3)
             multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
             for (i4, fest) in enumerate(evr)
                 if isDone(siminfo, i1, i2, i3, i4)
                     continue
                 end
+                started!(siminfo, i1, i2, i3, i4)
                 estiminfo = siminfo.zhat[i1, i2, i3, i4]
                 # do the estimation. results in multi
                 ev = fest(μ, σ)
                 for (i5, τ) in enumerate(τs)
+                    started!(siminfo, i1, i2, i3, i4, i5)
                     msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
                     # even if things are good enough, this is cheap to compute
                     push!(msepinfo.msep, msepabs(multi.clusters, τ))

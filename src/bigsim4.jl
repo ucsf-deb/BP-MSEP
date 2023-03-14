@@ -221,6 +221,11 @@ function MSEPInfo(firstCheck=7)
     MSEPInfo(false, firstCheck, Vector())
 end
 
+"putting it all together"
+mutable struct SimInfo
+    data::NamedArray{DatInfo,3}
+end
+
 "recommended number of clusters to simulate for given cluster size"
 function nClusters(clusterSize)::Int
     nT = Threads.nthreads()  # maybe -1 to allow for coordination?
@@ -259,16 +264,53 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     dat = NamedArray(
         [ DatInfo(nClusters(nc)) for μ in μs, σ in σs, nc in clusterSizes],
         dimnames[1:3], dims[1:3])
-
     est = NamedArray(
         [EstimInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames],
         dimnames[1:4], dims[1:4])
-    est[2, 2, 1, 3].done = true
-    print(est[1, 2, 1, 3].done)
     err = NamedArray(
         [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
             τ in τs],
         dimnames[1:5], dims[1:5])
+    nIter = 1
+    while any(map((x)->!x.done, dat))
+        for (i1, μ) in enumerate(μs), (i2, σ) in enumerate(σs), (i3, ncs) in enumerate(clusterSizes)
+            if dat[i1, i2, i3].done
+                continue
+            end
+            multi = maker(nclusters=dat[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
+            anyEstimDone = false # true if any estimator finished
+            for (i4, fest) in enumerate(evr)
+                estiminfo = est[i1, i2, i3, i4]
+                if estiminfo.done
+                    continue
+                end
+                # do the estimation. results in multi
+                ev = fest(μ, σ)
+                anyDone = false  # true if we complete any elements
+                for (i5, τ) in enumerate(τs)
+                    msepinfo = err[i1, i2, i3, i4, i5]
+                    # even if things are good enough, this is cheap to compute
+                    push!(msepinfo.msep, msepabs(multi.clusters, τ))
+                    # check if done
+                    if msepinfo.done || nIter != msepinfo.nextCheck
+                        continue
+                    end
+                    sd = std(msepinfo.msep)
+                    if sd/sqrt(nIter) ≤ maxsd
+                        msepinfo.done = true
+                        anyDone = true
+                    else
+                        msepinfo.nextCheck = clamp((sd/maxsd)^2, nIter+5, nIter+100)
+                    end
+                end
+                if anyDone
+                    estimInfo.done = all(map(x->x.done, err[i1, i2, i3, i4, :]))
+                    anyEstimDone |= estimInfo.done
+                end
+            end
+        end
+        nIter += 1
+    end
     return est
 end
 

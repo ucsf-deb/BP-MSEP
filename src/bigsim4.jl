@@ -165,10 +165,20 @@ myr = EVRequests([
      7)
 
 #=
-for x in myr
-    println(description(x(-1.0, 1.0)))
-end
-println("Total of ", length(myr), " estimands.")
+We time various calculations, some nested within others.
+We record the start time and the duration.
+In making estimates of how long things take we most
+commonly will want the duration, so we save that
+rather then the end time.
+
+WARNING: Nothing in the published documentation guarantees
+the type of the duration.  In julia 1.8.5 on MS-Windows,
+based on experiment and inspection of the code, it seems to
+be Millisecond always.  In the interest of performance I use that,
+rather than abstract type like TimePeriod.
+
+For display, consider, e.g.,
+canonicalize(round(duration), Minute(1))
 =#
 
 """
@@ -191,12 +201,12 @@ mutable struct DatInfo
     "start times of each iteration"
     starts::Vector{DateTime}
 
-    "end times of each iteration"
-    ends::Vector{DateTime}
+    "length of each iteration"
+    durations::Vector{Millisecond}
 end
 
 function DatInfo(nClusters::Int)
-    DatInfo(false, false, nClusters, 0, Vector{DateTime}(), Vector{DateTime}())
+    DatInfo(false, false, nClusters, 0, Vector{DateTime}(), Vector{Millisecond}())
 end
 
 """
@@ -215,12 +225,12 @@ mutable struct EstimInfo
     "start times of each iteration"
     starts::Vector{DateTime}
 
-    "end times of each iteration"
-    ends::Vector{DateTime}
+    "length of each iteration"
+    durations::Vector{Millisecond}
 end
 
 function EstimInfo()
-    EstimInfo(false, false, 0, Vector{DateTime}(), Vector{DateTime}())
+    EstimInfo(false, false, 0, Vector{DateTime}(), Vector{Millisecond}())
 end
 
 """
@@ -332,12 +342,12 @@ function finished!(si::SimInfo, i1, i2, i3, i4, i5)
 end
 
 function finished!(si::SimInfo, i1, i2, i3, i4)
-    push!(si.zhat[i1, i2, i3, i4].ends, now())
+    push!(si.zhat[i1, i2, i3, i4].durations, now()-last(si.zhat[i1, i2, i3, i4].starts))
     si.zhat.nCount += 1
 end
 
 function finished!(si::SimInfo, i1, i2, i3)
-    push!(si.data[i1, i2, i3].ends, now())
+    push!(si.data[i1, i2, i3].durations, now()-last(si.data[i1, i2, i3].starts))
     si.data.nSim += 1
 end
 

@@ -263,9 +263,12 @@ mutable struct SimInfo
 
     "measures of performance"
     msep::NamedArray{MSEPInfo,5}
+
+    "target sd of estimates of MSEP"
+    maxSD::Float64
 end
 
-function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes)
+function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes, maxSD)
     estimNames = names(evr)
     dims = ("μ", "σ", "clsize", "zhat", "τ")
     # avoid using numbers as names, since they conflict
@@ -285,7 +288,7 @@ function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes)
         [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
             τ in τs],
         dimnames[1:5], dims[1:5])
-    SimInfo(dat, est, err)
+    SimInfo(dat, est, err, maxSD)
 end
 
 "record that a computation has achieved sufficient accuracy"
@@ -372,31 +375,31 @@ end
 
 """
 Given existing records, estimate the total number of iterations
-required to achieve target standard error of se
+required to achieve target standard error
 
 To get remaining iterations, subtract the number of existing iterations.
 """
-function estimated_iterations_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4, i5)
+function estimated_iterations(si::SimInfo, i1, i2, i3, i4, i5)
     sd = std(si.msep[i1, i2, i3, i4, i5].msep)
-    return round((sd/se)^2)
+    return round((sd/si.maxSD)^2)
 end
 
 
-function estimated_iterations_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4)
+function estimated_iterations(si::SimInfo, i1, i2, i3, i4)
     sdmax = max([std(si.msep.msep[i1, i2, i3, i4, i5].msep)] for i5 in axes(si.msep, 5))
-    return round((sdmax/se)^2)
+    return round((sdmax/si.maxSD)^2)
 end
 
-function remaining_iterations_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4)
+function remaining_iterations(si::SimInfo, i1, i2, i3, i4)
     if isDone(si, i1, i2, i3, i4)
         return 0
     end
     return max(0, 
-    estimated_iterations_for_se(si, se, i1, i2, i3, i4) - si.zhat.nCount)
+    estimated_iterations(si, i1, i2, i3, i4) - si.zhat.nCount)
 end
 
-function remaining_time_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4)
-    n = remaining_iterations_for_se(si, se, i1, i2, i3, i4)
+function remaining_time(si::SimInfo, i1, i2, i3, i4)
+    n = remaining_iterations(si, i1, i2, i3, i4)
     if n == 0
         return Millisecond(0)
     end
@@ -404,19 +407,19 @@ function remaining_time_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4)
 end
 
 # similar for the data level
-function remaining_iterations_for_se(si:SimInfo, se::Float64, i1, i2, i3)
+function remaining_iterations(si:SimInfo, i1, i2, i3)
     if isDone(si, i1, i2, i3)
         return 0
     end
-    return max([remaining_iterations_for_se(si, se, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
+    return max([remaining_iterations(si, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
 end
 
 "estimated remaining time for estimation.  Ignores data generation time, hence inner."
-function remaining_inner_time_for_se(si:SimInfo, se::Float64, i1, i2, i3)
+function remaining_inner_time(si:SimInfo, i1, i2, i3)
     if isDone(si, i1, i2, i3)
         return Millisecond(0)
     end
-    return sum([remaining_time_for_se(si, se, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
+    return sum([remaining_time(si, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
 end
 
 "estimate ratio of time including data generation to time without"
@@ -427,24 +430,24 @@ function expension_factor(si::SimInfo, i1, i2, i3)
 end
 
 "estimate of remaining time including data generation overhead"
-function remaining_time_for_se(si:SimInfo, se::Float64, i1, i2, i3)
+function remaining_time(si:SimInfo, i1, i2, i3)
     if isDone(si, i1, i2, i3)
         return Millisecond(0)
     end
-    return remaining_inner_time_for_se(si, se, i1, i2, i3) *
+    return remaining_inner_time(si, i1, i2, i3) *
         expansion_factor(si, i1, i2, i3)
 end
 
-function remaining_time_for_se(si::SimInfo, se::Float64)
+function remaining_time(si::SimInfo)
     # CartesianIndices would be more elegant, but the functions above
     # would need to be extended to handle them.
-    sum(remaining_time_for_se(si, se, i1, i2, i3) for i1 in axes(si.data, 1),
+    sum(remaining_time(si, i1, i2, i3) for i1 in axes(si.data, 1),
         i2 in axes(si.data, 2), i3 in axes(si.data, 3))
 end
 
 "Not a great guide to remaining work since number of estimates for each outer iteration will vary"
-function remaining_iterations_for_se(si::SimInfo, se::Float64)
-    max(remaining_itertions_for_se(si, se, i1, i2, i3) for  i1 in axes(si.data, 1),
+function remaining_iterations(si::SimInfo)
+    max(remaining_itertions(si, i1, i2, i3) for  i1 in axes(si.data, 1),
     i2 in axes(si.data, 2), i3 in axes(si.data, 3))
 end
 
@@ -507,9 +510,9 @@ end
 Print a brief summary of estimated remaining work.
 """
 function report(io::IO, si::SimInfo)
-    remainingMinutes = remaining_time_for_se(si, maxsd)
+    remainingMinutes = remaining_time(si)
     (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
-    remainingIterations0 = remaining_iterations_for_se(si, maxsd)
+    remainingIterations0 = remaining_iterations(si)
     
 end
 =#
@@ -572,9 +575,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             end
             finished!(siminfo, i1, i2, i3)
         end    
-        nIter += 1
-
-        
+        nIter += 1  
     end
     return siminfo
 end

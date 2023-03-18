@@ -32,6 +32,8 @@ Note the absence of covariates, which potentially could reduce this to the separ
 Also, we are only doing symmetric cases: no AS predictor, and no use of asymmetric measures of MSEP.
 =#
 
+using Distributions  # only needed for stub code
+
 using Dates
 using MSEP
 using NamedArrays
@@ -362,6 +364,157 @@ function nClusters(clusterSize)::Int
     return clamp(nClusters, 5, maxClusters)
 end
 
+##### Assessing how much work is done and how much remains
+function stderr(si::SimInfo, i1, i2, i3, i4, i5)
+    errs = si.msep[i1, i2, i3, i4, i5].msep
+    return std(errs)/sqrt(length(errs))
+end
+
+"""
+Given existing records, estimate the total number of iterations
+required to achieve target standard error of se
+
+To get remaining iterations, subtract the number of existing iterations.
+"""
+function estimated_iterations_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4, i5)
+    sd = std(si.msep[i1, i2, i3, i4, i5].msep)
+    return round((sd/se)^2)
+end
+
+
+function estimated_iterations_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4)
+    sdmax = max([std(si.msep.msep[i1, i2, i3, i4, i5].msep)] for i5 in axes(si.msep, 5))
+    return round((sdmax/se)^2)
+end
+
+function remaining_iterations_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4)
+    if isDone(si, i1, i2, i3, i4)
+        return 0
+    end
+    return max(0, 
+    estimated_iterations_for_se(si, se, i1, i2, i3, i4) - si.zhat.nCount)
+end
+
+function remaining_time_for_se(si::SimInfo, se::Float64, i1, i2, i3, i4)
+    n = remaining_iterations_for_se(si, se, i1, i2, i3, i4)
+    if n == 0
+        return Millisecond(0)
+    end
+    return n*mean_duration(si, i1, i2, i3, i4)
+end
+
+# similar for the data level
+function remaining_iterations_for_se(si:SimInfo, se::Float64, i1, i2, i3)
+    if isDone(si, i1, i2, i3)
+        return 0
+    end
+    return max([remaining_iterations_for_se(si, se, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
+end
+
+"estimated remaining time for estimation.  Ignores data generation time, hence inner."
+function remaining_inner_time_for_se(si:SimInfo, se::Float64, i1, i2, i3)
+    if isDone(si, i1, i2, i3)
+        return Millisecond(0)
+    end
+    return sum([remaining_time_for_se(si, se, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
+end
+
+"estimate ratio of time including data generation to time without"
+function expension_factor(si::SimInfo, i1, i2, i3)
+    inner = sum([sum(si.zhat[i1, i2, i3, i4].durations) for i4 in axes(si.zhat, 4)])
+    outer = sum(si.data[i1, i2, i3].durations)
+    return max(1.0, outer/inner)
+end
+
+"estimate of remaining time including data generation overhead"
+function remaining_time_for_se(si:SimInfo, se::Float64, i1, i2, i3)
+    if isDone(si, i1, i2, i3)
+        return Millisecond(0)
+    end
+    return remaining_inner_time_for_se(si, se, i1, i2, i3) *
+        expansion_factor(si, i1, i2, i3)
+end
+
+function remaining_time_for_se(si::SimInfo, se::Float64)
+    # CartesianIndices would be more elegant, but the functions above
+    # would need to be extended to handle them.
+    sum(remaining_time_for_se(si, se, i1, i2, i3) for i1 in axes(si.data, 1),
+        i2 in axes(si.data, 2), i3 in axes(si.data, 3))
+end
+
+"Not a great guide to remaining work since number of estimates for each outer iteration will vary"
+function remaining_iterations_for_se(si::SimInfo, se::Float64)
+    max(remaining_itertions_for_se(si, se, i1, i2, i3) for  i1 in axes(si.data, 1),
+    i2 in axes(si.data, 2), i3 in axes(si.data, 3))
+end
+
+"""
+Return mean duration of the estimator at the given indices.
+
+Since we always compute all MSEP (one level down) there
+are no nasty issues about differing counts in the parts.
+When we go up to the si.data level there are such issues.
+
+There are problems computing the mean using `Dates`.  The
+exact type of the result of subtracting 2 `DateTime`s is not
+specified in the documentation, though it always seems to
+be `Millisecond` under julia 1.8.5 on MS Win Server 2019, 64bit.
+My type definitions for durations assure they will be
+`Millisecond`s, so the code should just blow up if that's not
+true.
+
+`mean()` of a collection of `Duration`s, even if they are all
+`Millisecond`, does not work reliably.  Unless the mean 
+can be exactly converted to `Int64` an `InexactError` will be thrown.
+The awkward code below gets around that.  Note that it is not
+safe if durations other than `Millisecond` are present, and if any
+of them are `CompoundPeriod`s it will throw an error since `value` is
+not defined for that type.
+
+For more, see
+https://github.com/JuliaLang/julia/issues/15322
+https://discourse.julialang.org/t/datetime-time-division/95285
+
+Another approach would be to use the `Unitful` package or some lower-
+level call to the system timer via time() (seconds since epoch, floating point)
+"""
+function mean_duration(si::SimInfo, i1, i2, i3, i4)
+    return Millisecond(round(mean([d.value for d in si.zhat[i1, i2, i3, i4].durations])))
+end
+
+#= reporting needs a rethink.
+The setup below is not really right for loops that accumulate information
+as they go, which is what I planned to do.  The struct isn't mutable
+and the conversion to hours and minutes is just a pain if I start adding
+durations.
+
+Also this seems likely to trigger a lot of redundant calculations.
+
+
+"quick helper function for report"
+struct remain
+    minutes::Float64
+    hours::Int
+    iterations::Int
+end
+
+function remain(minutes::Float64, iterations::Int)
+    (h, m) = divrem(minutes, 60)
+    remain(m, h, iterations)
+end
+
+"""
+Print a brief summary of estimated remaining work.
+"""
+function report(io::IO, si::SimInfo)
+    remainingMinutes = remaining_time_for_se(si, maxsd)
+    (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
+    remainingIterations0 = remaining_iterations_for_se(si, maxsd)
+    
+end
+=#
+
+
 
 """
 Simulate over the range of scenarios given by the arguments,
@@ -393,7 +546,10 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 started!(siminfo, i1, i2, i3, i4)
                 estiminfo = siminfo.zhat[i1, i2, i3, i4]
                 # do the estimation. results in multi
-                ev = fest(μ, σ)
+                ##STUB CODE FOR TESTING
+                multi.clusters.zhat = multi.clusters.z .+ rand(Normal(0.0, 0.8), nrow(multi.clusters))
+                ## END STUB. Start real code
+                #ev = fest(μ, σ)
                 for (i5, τ) in enumerate(τs)
                     started!(siminfo, i1, i2, i3, i4, i5)
                     msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
@@ -415,14 +571,14 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 finished!(siminfo, i1, i2, i3, i4)
             end
             finished!(siminfo, i1, i2, i3)
-        end
+        end    
         nIter += 1
+
+        
     end
     return siminfo
 end
 
-d = big4sim(myr)
-println(typeof(d))
-println(size(d))
-println(d)
+si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100])
+
 

@@ -138,15 +138,6 @@ function Base.iterate(evr::EVRequests, state)
     return (r[1], (state[1], r[2]))
 end
 
-myr = EVRequests([
-    # The first needs extra indirection to ignore λ
-    ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),
-    (LogisticSimpleEvaluator, (0.2, 0.3, 0.4, 0.5)),
-    (LogisticABEvaluator, (1.4, 1.6, 1.8)),
-    (LogisticCutoffEvaluator, (1.5, 1.75, 2.0))
-    ],
-     7)
-
 #=
 We time various calculations, some nested within others.
 We record the start time and the duration.
@@ -560,6 +551,16 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     end
     return siminfo
 end
+
+
+myr = EVRequests([
+    # The first needs extra indirection to ignore λ
+    ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),
+    (LogisticSimpleEvaluator, (0.2, 0.3, 0.4, 0.5)),
+    (LogisticABEvaluator, (1.4, 1.6, 1.8)),
+    (LogisticCutoffEvaluator, (1.5, 1.75, 2.0))
+    ],
+     7)
 
 si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100])
 

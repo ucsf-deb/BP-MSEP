@@ -138,25 +138,6 @@ function Base.iterate(evr::EVRequests, state)
     return (r[1], (state[1], r[2]))
 end
 
-
-#=
-Here are the current constructor calls
-"Default to zSQ evaluator"
-function LogisticSimpleEvaluator(λ, k, σ, integration_order=7)
-
-function LogisticCutoffEvaluator(λ, k, σ, integration_order=7)
-
-### this makes the inner function that in turn makes the evaluator I want
-### previous calls were to functions, while this calls the primary structure defntn
-# note the capture of λ in the function i the argument of wDensity
-function make_zAB_generator(; λ=1.6, k=-1.0, order=5)
-    function (σ)
-        LogisticSimpleEvaluator(λ, k, σ, order, wDensity((z, λ)-> λ*abs(z)), "zAB", 
-        AgnosticAGK(order), "AGK", "Adaptive Gauss-Kronrod")
-    end
-end
-=#
-
 myr = EVRequests([
     # The first needs extra indirection to ignore λ
     ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),

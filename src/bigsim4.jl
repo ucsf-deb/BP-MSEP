@@ -463,7 +463,7 @@ function estimated_iterations(si::SimInfo, i1, i2, i3, i4)
     zi = si.zhat[i1, i2, i3, i4]
     if zi.estimated_iterations < 0
         sdmax = maximum([std(si.msep[i1, i2, i3, i4, i5].msep) for i5 in axes(si.msep, 5)])
-        zi.estimated_iterations = round((sdmax/si.maxSD)^2)
+        zi.estimated_iterations = ceil((sdmax/si.maxSD)^2)
     end
     return zi.estimated_iterations
 end
@@ -476,6 +476,11 @@ function remaining_iterations(si::SimInfo, i1, i2, i3, i4)
         else
             zi.remaining_iterations = max(0, 
             estimated_iterations(si, i1, i2, i3, i4) - zi.nCount)
+            if zi.remaining_iterations == 0
+                for i5 in axes(si.msep, 5)
+                    setDone!(si, i1, i2, i3, i4, i5)
+                end
+            end
         end
     end
     return zi.remaining_iterations
@@ -541,8 +546,10 @@ function remaining_time(si::SimInfo, i1, i2, i3)
         if isDone(si, i1, i2, i3)
             di.remaining_time = Millisecond(0)
         else
-            di.remaining_time = remaining_inner_time(si, i1, i2, i3) *
-                expansion_factor(si, i1, i2, i3)
+            # ASSUMES dealing with Millisecond
+            di.remaining_time = Millisecond(round(
+                remaining_inner_time(si, i1, i2, i3).value *
+                expansion_factor(si, i1, i2, i3)))
         end
     end
     return di.remaining_time
@@ -613,9 +620,9 @@ function report(io::IO, si::SimInfo, outer_iter::Int)
         (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
         remainingIterations0 = remaining_iterations(si)
         remainingIterations3 = sum(remaining_iterations(si, islice...) for
-            islice in Iterators.product(ipos->axes(si.msep, ipos) for i in 1:3))
-        reminingIterations4 = sum(remaining_iterations(si, islice...) for
-            islice in Iterators.product(ipos->axes(si.msep, ipos) for i in 1:4))
+            islice in Iterators.product((axes(si.msep, i) for i in 1:3)...))
+        remainingIterations4 = sum(remaining_iterations(si, islice...) for
+            islice in Iterators.product((axes(si.msep, i) for i in 1:4)...))
         write(io, "$(remainingHours):$(remainingMinutes) (h:mm) remaining Outer Iterations = $remainingIterations0; Data iterations = $remainingIterations3; Estimator iterations = $(remainingIterations4) as of $(now()) @ Outer Iter $(outer_iter)\n")
     end 
 end

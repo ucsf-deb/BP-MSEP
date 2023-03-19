@@ -33,6 +33,7 @@ Also, we are only doing symmetric cases: no AS predictor, and no use of asymmetr
 =#
 
 using Distributions  # only needed for stub code
+using DataFrames    # for nrow in stub code
 
 using Dates
 using MSEP
@@ -229,14 +230,6 @@ function DatInfo(nClusters::Int)
     -1, Millisecond(-1), -1.0, Millisecond(-1))
 end
 
-function invalidate(si::SimInfo, i1, i2, i3)
-    dinfo = si.data[i1, i2, i3]
-    dinfo.remaining_iterations = -1
-    dinfo.remaining_inner_time = Millisecond(-1)
-    dinfo.expansion_factor = -1.0
-    dinfo.remaining_time = Millisecond(-1)
-end
-
 """
 Info at the level of a particular estimator, nested within data spec.
 """
@@ -268,15 +261,6 @@ function EstimInfo()
     -1, -1, Millisecond(-1), Millisecond(-1))
 end
 
-function invalidate(si::SimInfo, i1, i2, i3, i4)
-    est = si.zhat[i1, i2, i3, i4]
-    est.estimated_iterations = -1
-    est.remaining_iterations = -1
-    est.remaining_time = Millisecond(-1)
-    est.mean_duration = Millisecond(-1)
-    invalidate(si, i1, i2, i3)
-end
-
 
 """
 Info for one particular measure of MSEP
@@ -291,26 +275,16 @@ mutable struct MSEPInfo
     "each simulation contributes one result, an overall MSEP for relevant set"
     msep::Vector
 
+    "how many estimations done"
+    nCount::Int
+
     ## cache
     stderr::Float64
     estimated_iterations::Int
 end
 
 function MSEPInfo(firstCheck=7)
-    MSEPInfo(false, firstCheck, Vector(), -1.0, -1)
-end
-
-function invalidate(si::SimInfo, i1, i2, i3, i4, i5)
-    msep = si.msep[i1, i2, i3, i4, i5]
-    msep.stderr = -1.0
-    msep.estimated_iterations = -1
-    invalidate(si, i1, i2, i3, i4)
-end
-
-"append a new result to the existing ones"
-function push!(si::SimInfo, msep, i1, i2, i3, i4, i5)
-    push!(si.msep[i1, i2, i3, i4, i5].msep, msep)
-    invalidate(si, i1, i2, i3, i4, i5)
+    MSEPInfo(false, firstCheck, Vector(), 0, -1.0, -1)
 end
 
 "putting it all together"
@@ -388,6 +362,30 @@ function isDone(si::SimInfo)
     all((ic)->isDone(si, Tuple(ic)...), CartesianIndices(si.data))
 end
 
+function invalidate(si::SimInfo, i1, i2, i3)
+    dinfo = si.data[i1, i2, i3]
+    dinfo.remaining_iterations = -1
+    dinfo.remaining_inner_time = Millisecond(-1)
+    dinfo.expansion_factor = -1.0
+    dinfo.remaining_time = Millisecond(-1)
+end
+
+function invalidate(si::SimInfo, i1, i2, i3, i4)
+    est = si.zhat[i1, i2, i3, i4]
+    est.estimated_iterations = -1
+    est.remaining_iterations = -1
+    est.remaining_time = Millisecond(-1)
+    est.mean_duration = Millisecond(-1)
+    invalidate(si, i1, i2, i3)
+end
+
+function invalidate(si::SimInfo, i1, i2, i3, i4, i5)
+    msep = si.msep[i1, i2, i3, i4, i5]
+    msep.stderr = -1.0
+    msep.estimated_iterations = -1
+    invalidate(si, i1, i2, i3, i4)
+end
+
 "computations starting for given indices"
 function started!(si::SimInfo, i1, i2, i3, i4, i5)
     # nothing to do. Not worth timing
@@ -408,12 +406,20 @@ end
 
 function finished!(si::SimInfo, i1, i2, i3, i4)
     push!(si.zhat[i1, i2, i3, i4].durations, now()-last(si.zhat[i1, i2, i3, i4].starts))
-    si.zhat.nCount += 1
+    si.zhat[i1, i2, i3, i4].nCount += 1
 end
 
 function finished!(si::SimInfo, i1, i2, i3)
     push!(si.data[i1, i2, i3].durations, now()-last(si.data[i1, i2, i3].starts))
-    si.data.nSim += 1
+    si.data[i1, i2, i3].nSim += 1
+end
+
+# without the Base. in the definition below *all* uses
+# of push! apparently resolve to this function (and fail)
+"append a new result to the existing ones"
+function Base.push!(si::SimInfo, msep, i1, i2, i3, i4, i5)
+    push!(si.msep[i1, i2, i3, i4, i5].msep, msep)
+    invalidate(si, i1, i2, i3, i4, i5)
 end
 
 "recommended number of clusters to simulate for given cluster size"
@@ -456,7 +462,7 @@ end
 function estimated_iterations(si::SimInfo, i1, i2, i3, i4)
     zi = si.zhat[i1, i2, i3, i4]
     if zi.estimated_iterations < 0
-        sdmax = max([std(si.msep.msep[i1, i2, i3, i4, i5].msep)] for i5 in axes(si.msep, 5))
+        sdmax = maximum([std(si.msep[i1, i2, i3, i4, i5].msep) for i5 in axes(si.msep, 5)])
         zi.estimated_iterations = round((sdmax/si.maxSD)^2)
     end
     return zi.estimated_iterations
@@ -469,7 +475,7 @@ function remaining_iterations(si::SimInfo, i1, i2, i3, i4)
             zi.remaining_iterations = 0
         else
             zi.remaining_iterations = max(0, 
-            estimated_iterations(si, i1, i2, i3, i4) - si.zhat.nCount)
+            estimated_iterations(si, i1, i2, i3, i4) - zi.nCount)
         end
     end
     return zi.remaining_iterations
@@ -489,13 +495,13 @@ function remaining_time(si::SimInfo, i1, i2, i3, i4)
 end
 
 # similar for the data level
-function remaining_iterations(si:SimInfo, i1, i2, i3)
+function remaining_iterations(si::SimInfo, i1, i2, i3)
     di = si.data[i1, i2, i3]
     if di.remaining_iterations < 0
         if isDone(si, i1, i2, i3)
             di.remaining_iterations = 0
         else
-            di.remaining_iterations = max(
+            di.remaining_iterations = maximum(
                 [remaining_iterations(si, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
         end
     end
@@ -503,7 +509,7 @@ function remaining_iterations(si:SimInfo, i1, i2, i3)
 end
 
 "estimated remaining time for estimation.  Ignores data generation time, hence inner."
-function remaining_inner_time(si:SimInfo, i1, i2, i3)
+function remaining_inner_time(si::SimInfo, i1, i2, i3)
     di = si.data[i1, i2, i3]
     if di.remaining_inner_time == Millisecond(-1)
         if isDone(si, i1, i2, i3)
@@ -517,7 +523,7 @@ function remaining_inner_time(si:SimInfo, i1, i2, i3)
 end
 
 "estimate ratio of time including data generation to time without"
-function expension_factor(si::SimInfo, i1, i2, i3)
+function expansion_factor(si::SimInfo, i1, i2, i3)
     di = si.data[i1, i2, i3]
     if di.expansion_factor < 0.0
         # To Do: is this correct with caching?  Is it optimal?
@@ -529,7 +535,7 @@ function expension_factor(si::SimInfo, i1, i2, i3)
 end
 
 "estimate of remaining time including data generation overhead"
-function remaining_time(si:SimInfo, i1, i2, i3)
+function remaining_time(si::SimInfo, i1, i2, i3)
     di = si.data[i1, i2, i3]
     if di.remaining_time == Millisecond(-1)
         if isDone(si, i1, i2, i3)
@@ -551,8 +557,12 @@ end
 
 "Not a great guide to remaining work since number of estimates for each outer iteration will vary"
 function remaining_iterations(si::SimInfo)
-    max(remaining_itertions(si, i1, i2, i3) for  i1 in axes(si.data, 1),
+    maximum(remaining_iterations(si, i1, i2, i3) for  i1 in axes(si.data, 1),
     i2 in axes(si.data, 2), i3 in axes(si.data, 3))
+end
+
+function time_since_start(si::SimInfo)
+    return now()-si.data[1, 1, 1].starts[1]
 end
 
 """
@@ -595,14 +605,19 @@ end
 Print a brief summary of estimated remaining work.
 """
 function report(io::IO, si::SimInfo, outer_iter::Int)
-    remainingMinutes = remaining_time(si)/Minute(1)
-    (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
-    remainingIterations0 = remaining_iterations(si)
-    remainingIterations3 = sum(remaining_iterations(si, islice...) for
-        islice in Iterators.product(ipos->axes(si.msep, ipos) for i in 1:3))
-    reminingIterations4 = sum(remaining_iterations(si, islice...) for
-        islice in Iterators.product(ipos->axes(si.msep, ipos) for i in 1:4))
-    write(io, "$(remainingHours):$(remainingMinutes) (h:mm) remaining Outer Iterations = $remainingIterations0; Data iterations = $remainingIterations3; Estimator iterations = $(remainingIterations4) as of $(now()) @ Outer Iter $(outer_iter)\n")    
+    if outer_iter < 3
+        minutes = time_since_start(si)/Minute(1)
+        write(io, "To iteration $(outer_iter) total time so far $(minutes).\n")
+    else
+        remainingMinutes = remaining_time(si)/Minute(1)
+        (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
+        remainingIterations0 = remaining_iterations(si)
+        remainingIterations3 = sum(remaining_iterations(si, islice...) for
+            islice in Iterators.product(ipos->axes(si.msep, ipos) for i in 1:3))
+        reminingIterations4 = sum(remaining_iterations(si, islice...) for
+            islice in Iterators.product(ipos->axes(si.msep, ipos) for i in 1:4))
+        write(io, "$(remainingHours):$(remainingMinutes) (h:mm) remaining Outer Iterations = $remainingIterations0; Data iterations = $remainingIterations3; Estimator iterations = $(remainingIterations4) as of $(now()) @ Outer Iter $(outer_iter)\n")
+    end 
 end
 
 
@@ -622,7 +637,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes)
+    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, maxsd)
     nIter = 1
     while !isDone(siminfo)
         for (i1, μ) in enumerate(μs), (i2, σ) in enumerate(σs), (i3, ncs) in enumerate(clusterSizes)
@@ -665,7 +680,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             end
             finished!(siminfo, i1, i2, i3)
         end
-        report(stdout, si, nIter)  
+        report(stdout, siminfo, nIter)  
         nIter += 1  
     end
     return siminfo

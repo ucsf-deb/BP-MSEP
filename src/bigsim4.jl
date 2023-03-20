@@ -52,6 +52,59 @@ It seems safest to stick with the facilities of the base language, which imply e
 There is a constructor for `Channel` that uses a function taking only a `Channel` instance as an argument, and the result is itself iterable.  So something fairly clean should be possible.
 =#
 
+#=
+Some notes on coding and design
+
+Debugging
+=========
+In VSCode, code that is called in a generator expression will not trigger any breakpoints.
+E.g., `sum(test5(x) for x in [3, 5])` will not trigger breakpoints in `test5`.
+But code in an `Array` comprehension will trigger breakpoints in called code.
+E.g., `sum([test5(x) for x in [4, 5]])` stops in `test5`.  Since my lists are
+usually not long, I use the latter form despite the generator's possibly 
+superior efficiency.
+
+The general rule is that once processing enters code considered compiled by the
+debugger breakpoints become inoperative, even if the compiled code calls back to 
+uncompiled code, like `test5` in the previous example.  Despite my expectations,
+`sum` is not compiled, but something in the generator machinery is.
+
+See also test5.jl and 
+https://discourse.julialang.org/t/breakpoints-fail-in-code-called-from-compiled-code/96328
+
+
+Iterating Over All Indices
+==========================
+Because the main data structure, `SimInfo`, holds `NamedArray`'s with varying
+dimensions that are related, the code often works with indices rather than
+working directly with `NamedArrays`.  For example, `for d in SimInfo.data`
+would iterate overall all entries in the 3-dimensional `data`, but it does
+not permit us to find related 4 and 5 dimensional entries in `zhat` and `msep`.
+To get all indices in 3 dimensions, or all indices in `zhat` corresponding
+to a given 3-dimensional index, the code below uses a mix of strategies:
+
+  1.  `enumerate` as in the main loop, which is over indices and the corresponding 
+  values in a particular dimension.
+  2. `for i in axes(somearray, dim)`
+  3. `CartesianIndices` combined with `Tuple()...`.  The code in the functions
+  below always expects integer indices and can't handle Cartesian ones.
+  Hence the need to convert to `Tuple` and splat.
+  4. `Iterators.prodcut` of individual axes.  This is a bit delicate; done
+  naively the iterator return first the first axis iterator, then the second.
+  To avoid that, splat the results:
+  `Iterators.product((axes(si.msep, i) for i in 1:4)...)`
+
+This is probably too many ways of doing something.  There are some
+differences in usage.  First, sometimes we want the value associated
+with a dimension (e.g., a particular μ) as well as the index.  Second,
+sometimes we want a complete set of indices up to a particular dimension,
+e.g., all values for the first 3 indices, and sometimes we want only a
+slice, e.g., given i1, i2, i3, what are all possible 4 or 5 dimensional
+indices.
+=#
+
+
+
 "Holds a list of pairs with an Evaluator Constructor as first argument and a list of λ values as the second"
 struct EVRequests
     requests
@@ -66,9 +119,7 @@ end
 function names(evr::EVRequests)
     # easiest way to get names is to instantiate with random parameters
     r = Array{String}(undef, length(evr))
-    # enumerate doesn't work on evr
-    # I think it fails because it makes assuptions about the iteration state
-    # that aren't true for evr, which uses a Channel.
+    # enumerate doesn't (didn't?) work on evr
     i = 1
     for f in evr
         ev = f(0.0, 0.0)
@@ -348,7 +399,6 @@ function isDone(si::SimInfo, i1, i2, i3, i4)::Bool
 end
 
 function isDone(si::SimInfo, i1, i2, i3)::Bool
-    println("isDone($i1, $i2, $i3)")
     if si.data[i1, i2, i3].checkDone
         si.data[i1, i2, i3].done = all(
             (i4)->isDone(si, i1, i2, i3, i4), axes(si.zhat, 4)
@@ -712,6 +762,6 @@ myr = EVRequests([
         (LogisticCutoffEvaluator, (1.5))
         ],
          7)
-si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100])
+si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1)
 
 

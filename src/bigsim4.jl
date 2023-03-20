@@ -558,14 +558,14 @@ end
 function remaining_time(si::SimInfo)
     # CartesianIndices would be more elegant, but the functions above
     # would need to be extended to handle them.
-    sum(remaining_time(si, i1, i2, i3) for i1 in axes(si.data, 1),
-        i2 in axes(si.data, 2), i3 in axes(si.data, 3))
+    sum([remaining_time(si, i1, i2, i3) for i1 in axes(si.data, 1),
+        i2 in axes(si.data, 2), i3 in axes(si.data, 3)])
 end
 
 "Not a great guide to remaining work since number of estimates for each outer iteration will vary"
 function remaining_iterations(si::SimInfo)
-    maximum(remaining_iterations(si, i1, i2, i3) for  i1 in axes(si.data, 1),
-    i2 in axes(si.data, 2), i3 in axes(si.data, 3))
+    maximum([remaining_iterations(si, i1, i2, i3) for  i1 in axes(si.data, 1),
+    i2 in axes(si.data, 2), i3 in axes(si.data, 3)])
 end
 
 function time_since_start(si::SimInfo)
@@ -619,10 +619,10 @@ function report(io::IO, si::SimInfo, outer_iter::Int)
         remainingMinutes = remaining_time(si)/Minute(1)
         (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
         remainingIterations0 = remaining_iterations(si)
-        remainingIterations3 = sum(remaining_iterations(si, islice...) for
-            islice in Iterators.product((axes(si.msep, i) for i in 1:3)...))
-        remainingIterations4 = sum(remaining_iterations(si, islice...) for
-            islice in Iterators.product((axes(si.msep, i) for i in 1:4)...))
+        remainingIterations3 = sum([remaining_iterations(si, islice...) for
+            islice in Iterators.product((axes(si.msep, i) for i in 1:3)...)])
+        remainingIterations4 = sum([remaining_iterations(si, islice...) for
+            islice in Iterators.product((axes(si.msep, i) for i in 1:4)...)])
         write(io, "$(remainingHours):$(remainingMinutes) (h:mm) remaining Outer Iterations = $remainingIterations0; Data iterations = $remainingIterations3; Estimator iterations = $(remainingIterations4) as of $(now()) @ Outer Iter $(outer_iter)\n")
     end 
 end
@@ -693,7 +693,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     return siminfo
 end
 
-
+#= full size requests
 myr = EVRequests([
     # The first needs extra indirection to ignore λ
     ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),
@@ -702,7 +702,16 @@ myr = EVRequests([
     (LogisticCutoffEvaluator, (1.5, 1.75, 2.0))
     ],
      7)
+=#
 
+# abbreviated requests
+myr = EVRequests([
+        # The first needs extra indirection to ignore λ
+        ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),
+        (LogisticSimpleEvaluator, (0.2, 0.3)),
+        (LogisticCutoffEvaluator, (1.5))
+        ],
+         7)
 si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100])
 
 

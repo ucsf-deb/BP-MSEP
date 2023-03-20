@@ -729,7 +729,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                     if sd/sqrt(nIter) ≤ maxsd
                         setDone!(siminfo, i1, i2, i3, i4, i5)
                     else
-                        msepinfo.nextCheck = clamp((sd/maxsd)^2, nIter+5, nIter+100)
+                        msepinfo.nextCheck = clamp(ceil((sd/maxsd)^2), nIter+5, nIter+100)
                     end
                     finished!(siminfo, i1, i2, i3, i4, i5)
                 end

@@ -324,7 +324,7 @@ mutable struct MSEPInfo
     nextCheck::Int
 
     "each simulation contributes one result, an overall MSEP for relevant set"
-    msep::Vector
+    msep::Vector{Float64}
 
     "how many estimations done"
     nCount::Int
@@ -513,6 +513,9 @@ function estimated_iterations(si::SimInfo, i1, i2, i3, i4)
     zi = si.zhat[i1, i2, i3, i4]
     if zi.estimated_iterations < 0
         sdmax = maximum([std(si.msep[i1, i2, i3, i4, i5].msep) for i5 in axes(si.msep, 5)])
+        if isnan(sdmax) | isinf(sdmax)
+            bad=sdmax
+        end
         zi.estimated_iterations = ceil((sdmax/si.maxSD)^2)
     end
     return zi.estimated_iterations
@@ -677,7 +680,19 @@ function report(io::IO, si::SimInfo, outer_iter::Int)
     end 
 end
 
-
+"Write mean, sd, and n for MSEP for each combination"
+function toCSV(file, si::SimInfo)
+    fout = open(file, "w")
+    println(fout, join(vcat(dimnames(si.msep), ["mean", "sd", "n"]), ", "))
+    for (nms, mi) in enamerate(si.msep)
+        # we convert in place to avoid promoting the final Int to Float
+        vs = [string(mean(mi.msep)), string(std(mi.msep)), string(length(mi.msep))]
+        rs = collect(nms)  # convert to Vector from Tuple, which doesn't allow append
+        append!(rs, vs)
+        println(fout, join(rs, ", "))
+    end
+    close(fout)
+end
 
 
 """

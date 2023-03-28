@@ -708,9 +708,7 @@ function report(io::IO, si::SimInfo, outer_iter::Int)
 end
 
 """
-Write mean, sd, and n for MSEP for each combination to a file in CSV-ish format.
-
-Oops: labels say _se but they should be _sd.
+Write mean, std error, and n for MSEP for each combination to a file in CSV-ish format.
 
 Output format looks like this:
 mu, sigma, clsize, tau, zBP, zSQ(02), zSQ(03), zCT(15), zBP_se, zSQ(02)_se, zSQ(03)_se, zCT(15)_se, zBP_n, zSQ(02)_n, zSQ(03)_n, zCT(15)_n
@@ -732,7 +730,6 @@ for names() is in MSEP, which does not have the definition NamedArray injected i
 Base--in other words, no matching method is found.
 
 It might be more CSVish to enclose strings in "".  Fortunately, none have embedded spaces.
-
 """
 function toCSV(file, si::SimInfo)
     fout = open(file, "w")
@@ -751,7 +748,7 @@ function toCSV(file, si::SimInfo)
             print(fout, mean(si.msep[i1, i2, i3, i4, i5].msep), ", ")
         end
         for i4 in axes(si.msep, 4)
-            print(fout, std(si.msep[i1, i2, i3, i4, i5].msep), ", ")
+            print(fout, std(si.msep[i1, i2, i3, i4, i5].msep) / sqrt(length(si.msep[i1, i2, i3, i4, i5].msep)), ", ")
         end
         for i4 in axes(si.msep, 4)
             print(fout, length(si.msep[i1, i2, i3, i4, i5].msep))

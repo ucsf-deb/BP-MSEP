@@ -376,6 +376,33 @@ function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes, maxSD)
     SimInfo(dat, est, err, maxSD)
 end
 
+"""
+There are various ways we could decide when to stop the calculation.  Examples include
+   1. When a desired precision of MSEP is achieved for all estimators.
+   2. When a fixed number of iterations has elapsed.
+   3. When a fixed time has elapsed.
+   4. When the system load becomes too high.
+   5. Randomly.
+
+And there are various policies we could adopt about stopping some caculations and not others.
+   1. All or nothing.  Either run all estimators and all simulations or none.
+   2. As needed.  Only compute an estimate if the desired precision has not been met.
+   3. Allow each clustersize to have its own number of iterations.
+
+The original policy implemented in the code was 1. from the first list and 2. from the 
+second list, except that it was option 1 (All or nothing) with respect to the individual
+τ-based MSEP values.
+
+This complicated to explain and justify, and so we are moving more toward a fixed
+number of iterations.
+
+We will encapsulate these differences in a SimPolicy object, which SimInfo will use
+internally for all operations related to computing if the work is done and how much
+remains.
+"""
+abstract type SimPolicy end
+
+
 "record that a computation has achieved sufficient accuracy"
 function setDone!(si::SimInfo, i1, i2, i3, i4, i5)
     si.msep[i1, i2, i3, i4, i5].done = true

@@ -258,9 +258,6 @@ mutable struct DatInfo
     "number of clusters in individual simulated dataset"
     nClusters::Int
 
-    "numer of simulated datasets"
-    nSim::Int
-
     "start times of each iteration"
     starts::Vector{DateTime}
 
@@ -277,7 +274,7 @@ mutable struct DatInfo
 end
 
 function DatInfo(nClusters::Int)
-    DatInfo(false, false, nClusters, 0, Vector{DateTime}(), Vector{Millisecond}(),
+    DatInfo(false, false, nClusters, Vector{DateTime}(), Vector{Millisecond}(),
     -1, Millisecond(-1), -1.0, Millisecond(-1))
 end
 
@@ -290,9 +287,6 @@ mutable struct EstimInfo
 
     "should recompute done"
     checkDone::Bool
-
-    "max number of times this evaluated"
-    nCount::Int
 
     "start times of each iteration"
     starts::Vector{DateTime}
@@ -308,7 +302,7 @@ mutable struct EstimInfo
 end
 
 function EstimInfo()
-    EstimInfo(false, false, 0, Vector{DateTime}(), Vector{Millisecond}(),
+    EstimInfo(false, false, Vector{DateTime}(), Vector{Millisecond}(),
     -1, -1, Millisecond(-1), Millisecond(-1))
 end
 
@@ -326,16 +320,13 @@ mutable struct MSEPInfo
     "each simulation contributes one result, an overall MSEP for relevant set"
     msep::Vector{Float64}
 
-    "how many estimations done"
-    nCount::Int
-
     ## cache
     stderr::Float64
     estimated_iterations::Int
 end
 
 function MSEPInfo(firstCheck=7)
-    MSEPInfo(false, firstCheck, Vector(), 0, -1.0, -1)
+    MSEPInfo(false, firstCheck, Vector{Float64}(), -1.0, -1)
 end
 
 "putting it all together"
@@ -348,6 +339,12 @@ mutable struct SimInfo
 
     "measures of performance"
     msep::NamedArray{MSEPInfo,5}
+
+    "start times of each iteration"
+    starts::Vector{DateTime}
+
+    "length of each iteration"
+    durations::Vector{Millisecond}
 
     "target sd of estimates of MSEP"
     maxSD::Float64
@@ -373,7 +370,7 @@ function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes, maxSD)
         [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
             τ in τs],
         dimnames[1:5], dims[1:5])
-    SimInfo(dat, est, err, maxSD)
+    SimInfo(dat, est, err, Vector{DateTime}(), Vector{Millisecond}(), maxSD)
 end
 
 """
@@ -476,6 +473,10 @@ function started!(si::SimInfo, i1, i2, i3)
     push!(si.data[i1, i2, i3].starts, now())
 end
 
+function started!(si::SimInfo)
+    push!(si.starts, now())
+end
+
 "computations finished for given indices"
 function finished!(si::SimInfo, i1, i2, i3, i4, i5)
     # nothing to do
@@ -483,12 +484,14 @@ end
 
 function finished!(si::SimInfo, i1, i2, i3, i4)
     push!(si.zhat[i1, i2, i3, i4].durations, now()-last(si.zhat[i1, i2, i3, i4].starts))
-    si.zhat[i1, i2, i3, i4].nCount += 1
 end
 
 function finished!(si::SimInfo, i1, i2, i3)
     push!(si.data[i1, i2, i3].durations, now()-last(si.data[i1, i2, i3].starts))
-    si.data[i1, i2, i3].nSim += 1
+end
+
+function finished!(si::SimInfo)
+    push!(si.durations, now()-last(si.starts))
 end
 
 # without the Base. in the definition below *all* uses
@@ -497,6 +500,23 @@ end
 function Base.push!(si::SimInfo, msep, i1, i2, i3, i4, i5)
     push!(si.msep[i1, i2, i3, i4, i5].msep, msep)
     invalidate(si, i1, i2, i3, i4, i5)
+end
+
+"number of iterations completely finished"
+function iter_complete(si::SimInfo, i1, i2, i3, i4, i5)::Int
+    return length(si.msep[i1, i2, i3, i4, i5].msep)
+end
+
+function iter_complete(si::SimInfo, i1, i2, i3, i4)::Int
+    return length(si.zhat[i1, i2, i3, i4].durations)
+end
+
+function iter_complete(si::SimInfo, i1, i2, i3)::Int
+    return length(si.data[i1, i2, i3].durations)
+end
+
+function iter_complete(si::SimInfo)::Int
+    return length(si.durations)
 end
 
 "recommended number of clusters to simulate for given cluster size"
@@ -555,7 +575,7 @@ function remaining_iterations(si::SimInfo, i1, i2, i3, i4)
             zi.remaining_iterations = 0
         else
             zi.remaining_iterations = max(0, 
-            estimated_iterations(si, i1, i2, i3, i4) - zi.nCount)
+            estimated_iterations(si, i1, i2, i3, i4) - iter_complete(si, i1, i2, i3, i4))
             if zi.remaining_iterations == 0
                 for i5 in axes(si.msep, 5)
                     setDone!(si, i1, i2, i3, i4, i5)
@@ -691,7 +711,8 @@ end
 """
 Print a brief summary of estimated remaining work.
 """
-function report(io::IO, si::SimInfo, outer_iter::Int)
+function report(io::IO, si::SimInfo)
+    outer_iter = iter_complete(si)
     if outer_iter < 3
         minutes = time_since_start(si)/Minute(1)
         write(io, "To iteration $(outer_iter) total time so far $(minutes).\n")
@@ -780,6 +801,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, maxsd)
     nIter = 1
     while !isDone(siminfo)
+        started!(siminfo)
         for (i1, μ) in enumerate(μs), (i2, σ) in enumerate(σs), (i3, ncs) in enumerate(clusterSizes)
             if isDone(siminfo, i1, i2, i3)
                 continue
@@ -820,8 +842,9 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             end
             finished!(siminfo, i1, i2, i3)
         end
-        report(stdout, siminfo, nIter)  
-        nIter += 1  
+        finished!(siminfo)
+        report(stdout, siminfo)  
+        nIter += 1
     end
     return siminfo
 end
@@ -845,6 +868,4 @@ myr = EVRequests([
         (LogisticCutoffEvaluator, (1.5))
         ],
          7)
-si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1)
-
-
+si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);

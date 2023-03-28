@@ -116,7 +116,7 @@ function Base.length(evr::EVRequests)
 end
 
 "return brief description of each iterator"
-function names(evr::EVRequests)
+function Base.names(evr::EVRequests)
     # easiest way to get names is to instantiate with random parameters
     r = Array{String}(undef, length(evr))
     # enumerate doesn't (didn't?) work on evr
@@ -707,16 +707,60 @@ function report(io::IO, si::SimInfo, outer_iter::Int)
     end 
 end
 
-"Write mean, sd, and n for MSEP for each combination"
+"""
+Write mean, sd, and n for MSEP for each combination to a file in CSV-ish format.
+
+Oops: labels say _se but they should be _sd.
+
+Output format looks like this:
+mu, sigma, clsize, tau, zBP, zSQ(02), zSQ(03), zCT(15), zBP_se, zSQ(02)_se, zSQ(03)_se, zCT(15)_se, zBP_n, zSQ(02)_n, zSQ(03)_n, zCT(15)_n
+-1.0, 0.25, 5, 0.0, 0.6226021349978597, 0.6377161365510139, 0.6061575013463772, 0.6474130395221039, 0.05997807765738697, 0.05186363052254691, 0.036776207429418485, 0.020456271297393722, 3, 3, 3, 3
+.....
+
+Requirements:
+  1. Results for different estimators appear as columns to facilitate comparisons.
+  2. No Greek letters; they flumox Excel and are hard to input.
+  3. No period in the labelling of the λ parameter for the estimator.
+
+My first cut had a column, zhat, with the short name of the estimator and ended with 
+3 columns named mean, sd, and n to give those 3 statistics for a particular estimator.
+That allowed me to use enamerate; sadly, the current implementation does not.
+
+The uses of names(), from NamedArrays, only works if I define my names() function
+for EVRequests as being in the Base namespace.  Apparently if it is not, the only search
+for names() is in MSEP, which does not have the definition NamedArray injected into 
+Base--in other words, no matching method is found.
+
+It might be more CSVish to enclose strings in "".  Fortunately, none have embedded spaces.
+
+"""
 function toCSV(file, si::SimInfo)
     fout = open(file, "w")
-    println(fout, join(vcat(dimnames(si.msep), ["mean", "sd", "n"]), ", "))
-    for (nms, mi) in enamerate(si.msep)
-        # we convert in place to avoid promoting the final Int to Float
-        vs = [string(mean(mi.msep)), string(std(mi.msep)), string(length(mi.msep))]
-        rs = collect(nms)  # convert to Vector from Tuple, which doesn't allow append
-        append!(rs, vs)
-        println(fout, join(rs, ", "))
+    greek = Dict("μ"=>"mu", "σ"=>"sigma", "τ"=>"tau")
+    dnames = [get(greek, lbl, lbl) for lbl in filter(x-> x!="zhat", dimnames(si.msep))]
+    estnames = [ replace(x, "."=>"", "λ="=>"") for x in names(si.zhat, 4)]
+    senames = estnames .* "_se"
+    nnames = estnames .* "_n"
+    cnames = vcat(dnames, estnames, senames, nnames)
+    lasti4 = size(si.zhat, 4)
+    println(fout, join(cnames, ", "))
+    for i1 in axes(si.msep, 1), i2 in axes(si.msep, 2), i3 in axes(si.msep, 3), i5 in axes(si.msep, 5)
+        print(fout, join(string.([names(si.msep, 1)[i1], names(si.msep, 2)[i2],
+            names(si.msep, 3)[i3], names(si.msep, 5)[i5]]),", "), ", ")
+        for i4 in axes(si.msep, 4)
+            print(fout, mean(si.msep[i1, i2, i3, i4, i5].msep), ", ")
+        end
+        for i4 in axes(si.msep, 4)
+            print(fout, std(si.msep[i1, i2, i3, i4, i5].msep), ", ")
+        end
+        for i4 in axes(si.msep, 4)
+            print(fout, length(si.msep[i1, i2, i3, i4, i5].msep))
+            if i4 < lasti4
+                print(fout, ", ")
+            else
+                println(fout, "")
+            end
+        end
     end
     close(fout)
 end

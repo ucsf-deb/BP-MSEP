@@ -582,6 +582,16 @@ function stderr(si::SimInfo, i1, i2, i3, i4, i5)
     return msi.stderr
 end
 
+"standard error of all scenarios"
+function stderr(si::SimInfo)
+    return [stderr(si, Tuple(ix)...) for ix in CartesianIndices(si.msep)]
+end
+
+"biggest std err across all scenarios"
+function maxSE(si::SimInfo)
+    return maximum(stderr(si))
+end
+
 """
 Given existing records, estimate the total number of iterations
 required to achieve target standard error
@@ -746,7 +756,7 @@ end
 
 
 function time_since_start(si::SimInfo)
-    return now()-si.data[1, 1, 1].starts[1]
+    return now()-si.starts[1]
 end
 
 """
@@ -898,6 +908,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     =#
     siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(7))
     nIter = 1
+    nextReportTime = DateTime(2000)
     while !isDone(siminfo)
         started!(siminfo)
         for (i1, μ) in enumerate(μs), (i2, σ) in enumerate(σs), (i3, ncs) in enumerate(clusterSizes)
@@ -930,9 +941,18 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             finished!(siminfo, i1, i2, i3)
         end
         finished!(siminfo)
-        report(stdout, siminfo)  
+        if now() > nextReportTime
+            report(stdout, siminfo)
+            nextReportTime = now()+Second(2)
+        end
         nIter += 1
     end
+    total_time = time_since_start(siminfo)
+    total_minutes = total_time/Minute(1)
+    (totH, totM) = divrem(total_minutes, 60)
+    @printf("Finished after %d:%05.2f (h:mm) and %d iterations. Largest std err %7.3f",
+        totH, totM, iter_complete(siminfo), maxSE(siminfo))
+    println(" at $(now()).")
     return siminfo
 end
 

@@ -627,7 +627,11 @@ function remaining_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4)
     return zi.remaining_iterations
 end
 
-function remaining_time(si::SimInfo, i1, i2, i3, i4)
+function remaining_time(si::SimInfo, ix...)
+    remaining_time(si.policy, si, ix...)
+end
+
+function remaining_time(sp::SimSE, si::SimInfo, i1, i2, i3, i4)
     zi = si.zhat[i1, i2, i3, i4]
     if zi.remaining_time == Millisecond(-1)
         n = remaining_iterations(si, i1, i2, i3, i4)
@@ -681,10 +685,10 @@ function expansion_factor(si::SimInfo, i1, i2, i3)
 end
 
 "estimate of remaining time including data generation overhead"
-function remaining_time(si::SimInfo, i1, i2, i3)
+function remaining_time(sp::SimSE, si::SimInfo, i1, i2, i3)
     di = si.data[i1, i2, i3]
     if di.remaining_time == Millisecond(-1)
-        if isDone(si, i1, i2, i3)
+        if isDone(sp, si, i1, i2, i3)
             di.remaining_time = Millisecond(0)
         else
             # ASSUMES dealing with Millisecond
@@ -696,10 +700,10 @@ function remaining_time(si::SimInfo, i1, i2, i3)
     return di.remaining_time
 end
 
-function remaining_time(si::SimInfo)
+function remaining_time(sp::SimSE, si::SimInfo)
     # CartesianIndices would be more elegant, but the functions above
     # would need to be extended to handle them.
-    sum([remaining_time(si, i1, i2, i3) for i1 in axes(si.data, 1),
+    sum([remaining_time(sp, si, i1, i2, i3) for i1 in axes(si.data, 1),
         i2 in axes(si.data, 2), i3 in axes(si.data, 3)])
 end
 
@@ -744,9 +748,12 @@ Another approach would be to use the `Unitful` package or some lower-
 level call to the system timer via time() (seconds since epoch, floating point)
 """
 function mean_duration(si::SimInfo, i1, i2, i3, i4)
-    return Millisecond(round(mean([d.value for d in si.zhat[i1, i2, i3, i4].durations])))
+    return mean_duration(si.zhat[i1, i2, i3, i4].durations)
 end
 
+function mean_duration(durations::Vector{Millisecond})::Millisecond
+    return Millisecond(round(mean(d.value for d in durations)))
+end
 
 
 """

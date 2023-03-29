@@ -370,6 +370,16 @@ struct SimSE <: SimPolicy
     maxSE::Float64
 end
 
+"""
+Perform a fixed number of simulations for all scenarios.
+
+Eventually may want to allow it to vary with some of the attributes.
+"""
+struct SimNIter <: SimPolicy
+    "number of iterations to perform"
+    target::Int
+end
+
 "putting it all together"
 mutable struct SimInfo
     "generating data"
@@ -452,8 +462,17 @@ function isDone(sp::SimSE, si::SimInfo, i1, i2, i3)::Bool
     return si.data[i1, i2, i3].done
 end
 
-function isDone(sp::SimSE, si::SimInfo)
+function isDone(sp::SimSE, si::SimInfo)::Bool
     all((ic)->isDone(sp, si, Tuple(ic)...), CartesianIndices(si.data))
+end
+
+function isDone(sp::SimNIter, si::SimInfo)::Bool
+    return iter_complete(si) ≥ sp.target
+end
+
+function isDone(sp::SimNIter, si::SimInfo, i1, ix...)::Bool
+    # as an optimization we just skip this check
+    return false
 end
 
 function invalidate(si::SimInfo, i1, i2, i3)
@@ -596,6 +615,10 @@ function estimated_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4)
     return zi.estimated_iterations
 end
 
+function estimated_iterations(sp::SimNIter, si::SimInfo, ix...)
+    return sp.target
+end
+
 # forward all requests through the policy
 function remaining_iterations(si::SimInfo, ix...)
     remaining_iterations(si.policy, si, ix...)
@@ -713,6 +736,15 @@ function remaining_iterations(sp::SimSE, si::SimInfo)
     i2 in axes(si.data, 2), i3 in axes(si.data, 3)])
 end
 
+function remaining_iterations(sp::SimNIter, si::SimInfo, ix...)::Int
+    return max(0, sp.target - iter_complete(si, ix...))
+end
+
+function remaining_time(sp::SimNIter, si::SimInfo)::Millisecond
+    return remaining_iterations(sp, si)*mean_duration(si.durations)
+end
+
+
 function time_since_start(si::SimInfo)
     return now()-si.data[1, 1, 1].starts[1]
 end
@@ -770,7 +802,7 @@ function report(io::IO, sp::SimSE, si::SimInfo)
         ## string interpolation like "$(minutes)" causes an error when used in @printf
         @printf(io, "To iteration %d total time so far %7.2f min.\n", outer_iter, minutes)
     else
-        remainingMinutes = remaining_time(si)/Minute(1)
+        remainingMinutes = remaining_time(sp, si)/Minute(1)
         (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
         remainingIterations0 = remaining_iterations(sp, si)
         remainingIterations3 = sum([remaining_iterations(sp, si, islice...) for
@@ -782,6 +814,17 @@ function report(io::IO, sp::SimSE, si::SimInfo)
         print(io, " as of $(now()) @ Outer Iter $(outer_iter)\n")
     end 
 end
+
+function report(io::IO, sp::SimNIter, si::SimInfo)
+    outer_iter = iter_complete(si)
+    remainingMinutes = remaining_time(sp, si)/Minute(1)
+    (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
+    remainingIterations0 = remaining_iterations(sp, si)
+    @printf(io, "%d:%05.2f (h:mm) remaining in %d Iterations as of iteration %d ", 
+        remainingHours, remainingMinutes, remainingIterations0, outer_iter)
+    println(io, "as of $(now())")
+end
+
 
 """
 Write mean, std error, and n for MSEP for each combination to a file in CSV-ish format.
@@ -853,7 +896,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimSE(5, maxsd))
+    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(7))
     nIter = 1
     while !isDone(siminfo)
         started!(siminfo)
@@ -907,6 +950,10 @@ function post_push(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
     else
         msepinfo.nextCheck = clamp(ceil(0.8*(sd/sp.maxSE)^2), n+3, n+50)
     end
+end
+
+function post_push(sp::SimNIter, si::SimInfo, i1, i2, i3, i4, i5)
+    # nothing to do
 end
 
 

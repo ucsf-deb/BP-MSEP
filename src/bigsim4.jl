@@ -891,6 +891,40 @@ function toCSV(file, si::SimInfo)
     close(fout)
 end
 
+"""
+core of the simulations
+
+Distributes the calculation of using the evaluator ev to
+get prediction (zhat) for each cluster.
+
+Results returned in the zhat column of ml.clusters; that
+column should exist on input.
+
+nclustersize is the number of individual observations in each cluster.
+nclusters is the number of clusters
+"""
+function simulate(si::SimInfo, ml::MultiLevel, ev::Evaluator, nclustersize::Int, nclusters::Int)
+    nT = Threads.nthreads()
+    command = Channel(2*nT)
+
+    # launch workers
+    tasks = [Threads.@spawn MSEP.worker(command, ml, ev) for i in 1:nT]
+      
+    # feed them jobs
+    for iCluster in 1:nclusters
+        put!(command, ((iCluster-1)*nclustersize+1, iCluster*nclustersize, iCluster))
+    end
+    # let each know there is no more work
+    for i in 1:nT
+        put!(command, (-1, -1, -1))
+    end
+
+    # wait for them to finish
+    for t in tasks
+        wait(t)
+    end
+end
+
 
 """
 Simulate over the range of scenarios given by the arguments,
@@ -906,7 +940,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(7))
+    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(200))
     nIter = 1
     nextReportTime = DateTime(2000)
     while !isDone(siminfo)
@@ -917,18 +951,17 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             end
             started!(siminfo, i1, i2, i3)
             multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
+            multi.clusters.zhat .= -100.0 # broadcast to make new columns
             for (i4, fest) in enumerate(evr)
                 if isDone(siminfo, i1, i2, i3, i4)
                     continue
                 end
                 started!(siminfo, i1, i2, i3, i4)
-                estiminfo = siminfo.zhat[i1, i2, i3, i4]
+                ev = fest(μ, σ) # construct appropriate evaluator
+
                 # do the estimation. results in multi
-                ##STUB CODE FOR TESTING
-                multi.clusters.zhat = multi.clusters.z .+ rand(Normal(0.0, 0.8), nrow(multi.clusters))
-                sleep(0.02)
-                ## END STUB. Start real code
-                #ev = fest(μ, σ)
+                simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
+
                 for (i5, τ) in enumerate(τs)
                     started!(siminfo, i1, i2, i3, i4, i5)
                     msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
@@ -943,7 +976,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
         finished!(siminfo)
         if now() > nextReportTime
             report(stdout, siminfo)
-            nextReportTime = now()+Second(2)
+            nextReportTime = now()+Minute(5)
         end
         nIter += 1
     end
@@ -997,3 +1030,4 @@ myr = EVRequests([
         ],
          7)
 si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
+toCSV("test.csv", si)

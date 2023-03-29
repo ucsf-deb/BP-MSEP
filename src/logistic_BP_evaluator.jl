@@ -18,6 +18,22 @@ struct LogisticBPEvaluator{TParam,TObjFn,TIntegrator} <: Evaluator
     inner::LogisticSimpleEvaluator{TParam,TObjFn,TIntegrator}
 end
 
+""" make ev.σ and ev.k work for LogisticBPEvaluator
+zSQdensity() needs this.
+
+On this implementation: 
+https://discourse.julialang.org/t/is-it-possble-for-julia-to-overwrite-how-to-get-field/59507
+
+Note that @forward from `Lazy` works on functions, not accessors:
+https://github.com/MikeInnes/Lazy.jl/blob/6705a0aa95b2d479e4ca5b5593313b0d6a857966/src/macros.jl#L293
+"""
+function Base.getproperty(ev::LogisticBPEvaluator, v::Symbol)
+    if v ∈ (:σ, :k)
+        getfield(ev.inner, v)
+    else
+        getfield(ev, v)
+    end
+end
 
 """
 Return Best Predictor evaluator (which does no weighting)

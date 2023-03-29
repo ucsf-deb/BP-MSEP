@@ -38,6 +38,7 @@ using DataFrames    # for nrow in stub code
 using Dates
 using MSEP
 using NamedArrays
+using Printf
 using Statistics
 
 #=
@@ -228,7 +229,7 @@ the cost of generating the data (level 3) and fitting an estimator
 (level 4).  So information may update even though "done".
 
 Also, to save time, done-ness is not recomputed at every iteration,
-but only when the iteration passes nextCheck (level 4 property). This
+but only when the iteration passes nextCheck (level 5 property). This
 is just to save work, since completion before nextCheck is unlikely.
 
 The purpose of the caching is to avoid potentially somewhat expensive 
@@ -329,50 +330,6 @@ function MSEPInfo(firstCheck=7)
     MSEPInfo(false, firstCheck, Vector{Float64}(), -1.0, -1)
 end
 
-"putting it all together"
-mutable struct SimInfo
-    "generating data"
-    data::NamedArray{DatInfo,3}
-
-    "computing estimates"
-    zhat::NamedArray{EstimInfo,4}
-
-    "measures of performance"
-    msep::NamedArray{MSEPInfo,5}
-
-    "start times of each iteration"
-    starts::Vector{DateTime}
-
-    "length of each iteration"
-    durations::Vector{Millisecond}
-
-    "target sd of estimates of MSEP"
-    maxSD::Float64
-end
-
-function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes, maxSD)
-    estimNames = names(evr)
-    dims = ("μ", "σ", "clsize", "zhat", "τ")
-    # avoid using numbers as names, since they conflict
-    # with indexing. Convert to string instead.
-    dimnames = (string.(μs), string.(σs), string.(clusterSizes), estimNames,
-            string.(τs))
-    dimlen = length.(dimnames)
-    # fill puts the same object in every cell
-    # Comprehensions create distinct objects.
-    dat = NamedArray(
-        [ DatInfo(nClusters(nc)) for μ in μs, σ in σs, nc in clusterSizes],
-        dimnames[1:3], dims[1:3])
-    est = NamedArray(
-        [EstimInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames],
-        dimnames[1:4], dims[1:4])
-    err = NamedArray(
-        [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
-            τ in τs],
-        dimnames[1:5], dims[1:5])
-    SimInfo(dat, est, err, Vector{DateTime}(), Vector{Millisecond}(), maxSD)
-end
-
 """
 There are various ways we could decide when to stop the calculation.  Examples include
    1. When a desired precision of MSEP is achieved for all estimators.
@@ -399,6 +356,63 @@ remains.
 """
 abstract type SimPolicy end
 
+"""
+Continue simulations until they reach a pre-specified precision.
+Simulations stop for a particular combination of parameters once
+the precision is reached.  Except for level 5, the τ: MSEP is always
+computed for all values of τ.
+"""
+struct SimSE <: SimPolicy
+    "perform at least this many iterations before judging whether done"
+    minIter::Int
+
+    "all standard errors must be ≤ maxSE "
+    maxSE::Float64
+end
+
+"putting it all together"
+mutable struct SimInfo
+    "generating data"
+    data::NamedArray{DatInfo,3}
+
+    "computing estimates"
+    zhat::NamedArray{EstimInfo,4}
+
+    "measures of performance"
+    msep::NamedArray{MSEPInfo,5}
+
+    "start times of each iteration"
+    starts::Vector{DateTime}
+
+    "length of each iteration"
+    durations::Vector{Millisecond}
+
+    "policy for terminating simulation"
+    policy::SimPolicy
+end
+
+function SimInfo(evr::EVRequests, μs, σs, τs, clusterSizes, policy::SimPolicy)
+    estimNames = names(evr)
+    dims = ("μ", "σ", "clsize", "zhat", "τ")
+    # avoid using numbers as names, since they conflict
+    # with indexing. Convert to string instead.
+    dimnames = (string.(μs), string.(σs), string.(clusterSizes), estimNames,
+            string.(τs))
+    dimlen = length.(dimnames)
+    # fill puts the same object in every cell
+    # Comprehensions create distinct objects.
+    dat = NamedArray(
+        [ DatInfo(nClusters(nc)) for μ in μs, σ in σs, nc in clusterSizes],
+        dimnames[1:3], dims[1:3])
+    est = NamedArray(
+        [EstimInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames],
+        dimnames[1:4], dims[1:4])
+    err = NamedArray(
+        [MSEPInfo() for μ in μs, σ in σs, nc in clusterSizes, zhat in estimNames,
+            τ in τs],
+        dimnames[1:5], dims[1:5])
+    SimInfo(dat, est, err, Vector{DateTime}(), Vector{Millisecond}(), policy)
+end
 
 "record that a computation has achieved sufficient accuracy"
 function setDone!(si::SimInfo, i1, i2, i3, i4, i5)
@@ -407,33 +421,39 @@ function setDone!(si::SimInfo, i1, i2, i3, i4, i5)
     si.data[i1, i2, i3].checkDone = true
 end
 
+
 "report whether computation at a certain level is done"
-function isDone(si::SimInfo, i1, i2, i3, i4, i5)::Bool
-    si.msep[i1, i2, i3, i4, i5].done
+function isDone(si::SimInfo, ix...)::Bool
+    isDone(si.policy, si, ix...)
 end
 
-function isDone(si::SimInfo, i1, i2, i3, i4)::Bool
+function isDone(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)::Bool
+    si.msep[i1, i2, i3, i4, i5].done &&
+    iter_complete(si, i1, i2, i3, i4, i5) ≥ sp.minIter
+end
+
+function isDone(sp::SimSE, si::SimInfo, i1, i2, i3, i4)::Bool
     if si.zhat[i1, i2, i3, i4].checkDone
         si.zhat[i1, i2, i3, i4].done = all(
-            (i5)->isDone(si, i1, i2, i3, i4, i5), axes(si.msep, 5)
+            (i5)->isDone(sp, si, i1, i2, i3, i4, i5), axes(si.msep, 5)
         )
         si.zhat[i1, i2, i3, i4].checkDone = false
     end
     return si.zhat[i1, i2, i3, i4].done
 end
 
-function isDone(si::SimInfo, i1, i2, i3)::Bool
+function isDone(sp::SimSE, si::SimInfo, i1, i2, i3)::Bool
     if si.data[i1, i2, i3].checkDone
         si.data[i1, i2, i3].done = all(
-            (i4)->isDone(si, i1, i2, i3, i4), axes(si.zhat, 4)
+            (i4)->isDone(sp, si, i1, i2, i3, i4), axes(si.zhat, 4)
         )
         si.data[i1, i2, i3].checkDone = false
     end
     return si.data[i1, i2, i3].done
 end
 
-function isDone(si::SimInfo)
-    all((ic)->isDone(si, Tuple(ic)...), CartesianIndices(si.data))
+function isDone(sp::SimSE, si::SimInfo)
+    all((ic)->isDone(sp, si, Tuple(ic)...), CartesianIndices(si.data))
 end
 
 function invalidate(si::SimInfo, i1, i2, i3)
@@ -499,7 +519,10 @@ end
 "append a new result to the existing ones"
 function Base.push!(si::SimInfo, msep, i1, i2, i3, i4, i5)
     push!(si.msep[i1, i2, i3, i4, i5].msep, msep)
+    # since the validity is managed in main data structures
+    # do not delegate this part to policy.
     invalidate(si, i1, i2, i3, i4, i5)
+    post_push(si.policy, si, i1, i2, i3, i4, i5)
 end
 
 "number of iterations completely finished"
@@ -546,39 +569,57 @@ required to achieve target standard error
 
 To get remaining iterations, subtract the number of existing iterations.
 """
-function estimated_iterations(si::SimInfo, i1, i2, i3, i4, i5)
+function estimated_iterations(si::SimInfo, ix...)
+    # I think this works even if there are no additional arguments
+    estimated_iterations(si.policy, si, ix...)
+end
+
+function estimated_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
     msi = si.msep[i1, i2, i3, i4, i5] # MSEP info
     if msi.estimated_iterations < 0
         sd = std(msi.msep)
-        msi.estimated_iterations = round((sd/si.maxSD)^2)
+        msi.estimated_iterations = max(ceil((sd/sp.maxSE)^2), sp.minIter)
     end
     return msi.estimated_iterations
 end
 
 
-function estimated_iterations(si::SimInfo, i1, i2, i3, i4)
+function estimated_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4)
     zi = si.zhat[i1, i2, i3, i4]
     if zi.estimated_iterations < 0
         sdmax = maximum([std(si.msep[i1, i2, i3, i4, i5].msep) for i5 in axes(si.msep, 5)])
         if isnan(sdmax) | isinf(sdmax)
             bad=sdmax
         end
-        zi.estimated_iterations = ceil((sdmax/si.maxSD)^2)
+        zi.estimated_iterations = max(ceil((sdmax/sp.maxSE)^2), sp.minIter)
     end
     return zi.estimated_iterations
 end
 
-function remaining_iterations(si::SimInfo, i1, i2, i3, i4)
+# forward all requests through the policy
+function remaining_iterations(si::SimInfo, ix...)
+    remaining_iterations(si.policy, si, ix...)
+end
+
+function remaining_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4)
     zi = si.zhat[i1, i2, i3, i4]
     if zi.remaining_iterations < 0
-        if isDone(si, i1, i2, i3, i4)
+        if isDone(sp, si, i1, i2, i3, i4)
             zi.remaining_iterations = 0
         else
             zi.remaining_iterations = max(0, 
-            estimated_iterations(si, i1, i2, i3, i4) - iter_complete(si, i1, i2, i3, i4))
+            estimated_iterations(sp, si, i1, i2, i3, i4) - iter_complete(sp, si, i1, i2, i3, i4))
             if zi.remaining_iterations == 0
                 for i5 in axes(si.msep, 5)
                     setDone!(si, i1, i2, i3, i4, i5)
+                end
+            else
+                for i5 in axes(si.msep)
+                    nIter = iter_complete(si, i1, i2, i3, i4, i5)
+                    nCheck = nIter + zi.remaining_iterations
+                    if nCheck < si.msep[i1, i2, i3, i4, i5].nextCheck
+                        si.msep[i1, i2, i3, i4, i5].nextCheck = nCheck
+                    end
                 end
             end
         end
@@ -600,14 +641,14 @@ function remaining_time(si::SimInfo, i1, i2, i3, i4)
 end
 
 # similar for the data level
-function remaining_iterations(si::SimInfo, i1, i2, i3)
+function remaining_iterations(sp::SimSE, si::SimInfo, i1, i2, i3)
     di = si.data[i1, i2, i3]
     if di.remaining_iterations < 0
-        if isDone(si, i1, i2, i3)
+        if isDone(sp, si, i1, i2, i3)
             di.remaining_iterations = 0
         else
             di.remaining_iterations = maximum(
-                [remaining_iterations(si, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
+                [remaining_iterations(sp, si, i1, i2, i3, i4) for i4 in axes(si.zhat, 4)])
         end
     end
     return di.remaining_iterations
@@ -663,8 +704,8 @@ function remaining_time(si::SimInfo)
 end
 
 "Not a great guide to remaining work since number of estimates for each outer iteration will vary"
-function remaining_iterations(si::SimInfo)
-    maximum([remaining_iterations(si, i1, i2, i3) for  i1 in axes(si.data, 1),
+function remaining_iterations(sp::SimSE, si::SimInfo)
+    maximum([remaining_iterations(sp, si, i1, i2, i3) for  i1 in axes(si.data, 1),
     i2 in axes(si.data, 2), i3 in axes(si.data, 3)])
 end
 
@@ -712,19 +753,26 @@ end
 Print a brief summary of estimated remaining work.
 """
 function report(io::IO, si::SimInfo)
+    report(io, si.policy, si)
+end
+
+function report(io::IO, sp::SimSE, si::SimInfo)
     outer_iter = iter_complete(si)
-    if outer_iter < 3
+    if outer_iter < sp.minIter
         minutes = time_since_start(si)/Minute(1)
-        write(io, "To iteration $(outer_iter) total time so far $(minutes).\n")
+        ## string interpolation like "$(minutes)" causes an error when used in @printf
+        @printf(io, "To iteration %d total time so far %7.2f min.\n", outer_iter, minutes)
     else
         remainingMinutes = remaining_time(si)/Minute(1)
         (remainingHours, remainingMinutes) = divrem(remainingMinutes, 60)
-        remainingIterations0 = remaining_iterations(si)
-        remainingIterations3 = sum([remaining_iterations(si, islice...) for
+        remainingIterations0 = remaining_iterations(sp, si)
+        remainingIterations3 = sum([remaining_iterations(sp, si, islice...) for
             islice in Iterators.product((axes(si.msep, i) for i in 1:3)...)])
-        remainingIterations4 = sum([remaining_iterations(si, islice...) for
+        remainingIterations4 = sum([remaining_iterations(sp, si, islice...) for
             islice in Iterators.product((axes(si.msep, i) for i in 1:4)...)])
-        write(io, "$(remainingHours):$(remainingMinutes) (h:mm) remaining Outer Iterations = $remainingIterations0; Data iterations = $remainingIterations3; Estimator iterations = $(remainingIterations4) as of $(now()) @ Outer Iter $(outer_iter)\n")
+        @printf(io, "%d:%5.2f (h:mm) remaining Outer Iterations = %d; Data iterations = %d; Estimator iterations = %d", 
+            remainingHours, remainingMinutes, remainingIterations0, remainingIterations3, remainingIterations4)
+        print(io, " as of $(now()) @ Outer Iter $(outer_iter)\n")
     end 
 end
 
@@ -798,7 +846,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, maxsd)
+    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimSE(5, maxsd))
     nIter = 1
     while !isDone(siminfo)
         started!(siminfo)
@@ -825,17 +873,6 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                     msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
                     # even if things are good enough, this is cheap to compute
                     push!(siminfo, msepabs(multi.clusters, τ), i1, i2, i3, i4, i5)
-                    # check if done
-                    if msepinfo.done || nIter != msepinfo.nextCheck
-                        finished!(siminfo, i1, i2, i3, i4, i5)
-                        continue
-                    end
-                    sd = std(msepinfo.msep)
-                    if sd/sqrt(nIter) ≤ maxsd
-                        setDone!(siminfo, i1, i2, i3, i4, i5)
-                    else
-                        msepinfo.nextCheck = clamp(ceil((sd/maxsd)^2), nIter+5, nIter+100)
-                    end
                     finished!(siminfo, i1, i2, i3, i4, i5)
                 end
                 finished!(siminfo, i1, i2, i3, i4)
@@ -848,6 +885,23 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     end
     return siminfo
 end
+
+"processing after a new value has been added to the MSEP at indices"
+function post_push(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
+    # check if done
+    msepinfo = si.msep[i1, i2, i3, i4, i5]
+    n = iter_complete(si, i1, i2, i3, i4, i5)
+    if msepinfo.done || n < msepinfo.nextCheck
+        return
+    end
+    sd = std(msepinfo.msep)
+    if sd/sqrt(n) ≤ sp.maxSE
+        setDone!(si, i1, i2, i3, i4, i5)
+    else
+        msepinfo.nextCheck = clamp(ceil(0.8*(sd/sp.maxSE)^2), n+3, n+50)
+    end
+end
+
 
 #= full size requests
 myr = EVRequests([

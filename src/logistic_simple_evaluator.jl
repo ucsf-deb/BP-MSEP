@@ -213,24 +213,29 @@ ml holds the input data with individual rows and the output
 data with a row for each cluster
 """
 function worker(command::Channel, ml::MultiLevel, ev::TEvaluator) where {TEvaluator <: Evaluator}
-    wa = WorkArea(ml.individuals, ev)
-    while true
-        i0, i1, iCluster = take!(command)
-        if i0 < 0
-            # maybe I should make a call to kill thread
-            return
+    try
+        wa = WorkArea(ml.individuals, ev)
+        while true
+            i0, i1, iCluster = take!(command)
+            if i0 < 0
+                # maybe I should make a call to kill thread
+                return
+            end
+            wa.i_start = i0
+            wa.i_end = i1
+            wa.i_cluster = iCluster
+            # do long-running calculations outside the lock
+            zh = zhat(ev, wa)
+            #zs = zsimp(ev, wa)
+            # DataFrame is thread-safe for reading, but not writing
+            lock(ml.cluster_lock) do
+                ml.clusters.zhat[iCluster] = zh
+                #ml.clusters.zsimp[iCluster] = zs
+            end
         end
-        wa.i_start = i0
-        wa.i_end = i1
-        wa.i_cluster = iCluster
-        # do long-running calculations outside the lock
-        zh = zhat(ev, wa)
-        #zs = zsimp(ev, wa)
-        # DataFrame is thread-safe for reading, but not writing
-        lock(ml.cluster_lock) do
-            ml.clusters.zhat[iCluster] = zh
-            #ml.clusters.zsimp[iCluster] = zs
-        end
+    catch exc
+        println(description(ev))
+        showerror(stderr, exc) #, catch_backtrace())
     end
 end
 

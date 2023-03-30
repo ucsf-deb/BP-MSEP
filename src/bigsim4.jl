@@ -39,6 +39,7 @@ using Dates
 using MSEP
 using NamedArrays
 using Printf
+using Random
 using Statistics
 
 #=
@@ -936,11 +937,13 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     σs=[0.25, 0.5, 0.75, 1.0, 1.25], 
     τs=[0.0, 1.28, 1.5, 1.645, 2.0, 2.33, 2.5],
     clusterSizes=[5, 7, 20, 100],
-    maxsd = 0.5)::SimInfo
+    maxsd = 0.5,
+    seed = 875234788510)::SimInfo
+    Random.seed!(seed)
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(200))
+    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(maxsd))
     nIter = 1
     nextReportTime = DateTime(2000)
     while !isDone(siminfo)
@@ -1010,7 +1013,7 @@ function post_push(sp::SimNIter, si::SimInfo, i1, i2, i3, i4, i5)
 end
 
 
-#= full size requests
+#= full size requests =#
 myr = EVRequests([
     # The first needs extra indirection to ignore λ
     ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),
@@ -1019,9 +1022,9 @@ myr = EVRequests([
     (LogisticCutoffEvaluator, (1.5, 1.75, 2.0))
     ],
      7)
-=#
 
-# abbreviated requests
+
+#= abbreviated requests
 myr = EVRequests([
         # The first needs extra indirection to ignore λ
         ((λ, k, σ, order)->LogisticBPEvaluator(k, σ, order), (0.0)),
@@ -1029,5 +1032,9 @@ myr = EVRequests([
         (LogisticCutoffEvaluator, (1.5))
         ],
          7)
-si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
+=#
+
+#si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
+
+si = big4sim(myr; maxsd=8000)
 toCSV("test.csv", si)

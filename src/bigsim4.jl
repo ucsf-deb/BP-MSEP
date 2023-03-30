@@ -40,6 +40,7 @@ using MSEP
 using NamedArrays
 using Printf
 using Random
+using Serialization
 using Statistics
 
 #=
@@ -1036,5 +1037,8 @@ myr = EVRequests([
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
 
-si = big4sim(myr; maxsd=8000)
-toCSV("test.csv", si)
+si = big4sim(myr; maxsd=8)
+toCSV("bigsim4.csv", si)
+open("bigsim4.jld", "w") do io
+    serialize(io, si)
+end

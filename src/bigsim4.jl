@@ -320,8 +320,19 @@ mutable struct MSEPInfo
     "next iteration at which to check if precision is sufficient"
     nextCheck::Int
 
-    "each simulation contributes one result, an overall MSEP for relevant set"
+    """"
+    each simulation contributes one result, an overall MSEP for relevant set
+    Sometimes the value is NaN because there are no z in the indicated range.
+    """
     msep::Vector{Float64}
+
+    "only those results that are finite, i.e., not missing or NaN"
+    msep_good::Vector{Float64}
+
+    ## To Do: n_good needs to be populated in, probably, used
+    ## populating it will require additional argument to push!.
+    "number of underlying clusters for value in msep_good"
+    n_good::Vector{Int}
 
     ## cache
     stderr::Float64
@@ -329,7 +340,19 @@ mutable struct MSEPInfo
 end
 
 function MSEPInfo(firstCheck=7)
-    MSEPInfo(false, firstCheck, Vector{Float64}(), -1.0, -1)
+    MSEPInfo(false, firstCheck, Vector{Float64}(), Vector{Float64}(), Vector{Int}(), -1.0, -1)
+end
+
+function Statistics.mean(mi::MSEPInfo)
+    mean(mi.msep_good)
+end
+
+function Statistics.std(mi::MSEPInfo)
+    std(mi.msep_good)
+end
+
+function stderr(mi::MSEPInfo)
+    std(mi)/sqrt(length(mi.msep_good))
 end
 
 """
@@ -540,9 +563,12 @@ end
 "append a new result to the existing ones"
 function Base.push!(si::SimInfo, msep, i1, i2, i3, i4, i5)
     push!(si.msep[i1, i2, i3, i4, i5].msep, msep)
-    # since the validity is managed in main data structures
-    # do not delegate this part to policy.
-    invalidate(si, i1, i2, i3, i4, i5)
+    if isfinite(msep)
+        push!(si.msep[i1, i2, i3, i4, i5].msep_good, msep)
+        # since the validity is managed in main data structures
+        # do not delegate this part to policy.
+        invalidate(si, i1, i2, i3, i4, i5)
+    end
     post_push(si.policy, si, i1, i2, i3, i4, i5)
 end
 
@@ -578,8 +604,7 @@ end
 function stderr(si::SimInfo, i1, i2, i3, i4, i5)
     msi = si.msep[i1, i2, i3, i4, i5] # MSEP info
     if msi.stderr < 0.0
-        errs = msi.msep
-        msi.stderr = std(errs)/sqrt(length(errs))
+        msi.stderr = stderr(msi)
     end
     return msi.stderr
 end
@@ -608,7 +633,7 @@ end
 function estimated_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
     msi = si.msep[i1, i2, i3, i4, i5] # MSEP info
     if msi.estimated_iterations < 0
-        sd = std(msi.msep)
+        sd = std(msi)
         msi.estimated_iterations = max(ceil((sd/sp.maxSE)^2), sp.minIter)
     end
     return msi.estimated_iterations
@@ -618,9 +643,13 @@ end
 function estimated_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4)
     zi = si.zhat[i1, i2, i3, i4]
     if zi.estimated_iterations < 0
-        sdmax = maximum([std(si.msep[i1, i2, i3, i4, i5].msep) for i5 in axes(si.msep, 5)])
+        sds = [std(si.msep[i1, i2, i3, i4, i5]) for i5 in axes(si.msep, 5)]
+        sdmax = maximum(sds)
         if isnan(sdmax) | isinf(sdmax)
-            bad=sdmax
+            sdmax = maximum(filter(isfinite, sds))
+            if !isfinite(sdmax)
+                sdmax=10.0
+            end
         end
         zi.estimated_iterations = max(ceil((sdmax/sp.maxSE)^2), sp.minIter)
     end
@@ -876,13 +905,13 @@ function toCSV(file, si::SimInfo)
         print(fout, join(string.([names(si.msep, 1)[i1], names(si.msep, 2)[i2],
             names(si.msep, 3)[i3], names(si.msep, 5)[i5]]),", "), ", ")
         for i4 in axes(si.msep, 4)
-            print(fout, mean(si.msep[i1, i2, i3, i4, i5].msep), ", ")
+            print(fout, mean(si.msep[i1, i2, i3, i4, i5]), ", ")
         end
         for i4 in axes(si.msep, 4)
-            print(fout, std(si.msep[i1, i2, i3, i4, i5].msep) / sqrt(length(si.msep[i1, i2, i3, i4, i5].msep)), ", ")
+            print(fout, stderr(si.msep[i1, i2, i3, i4, i5]), ", ")
         end
         for i4 in axes(si.msep, 4)
-            print(fout, length(si.msep[i1, i2, i3, i4, i5].msep))
+            print(fout, length(si.msep[i1, i2, i3, i4, i5].msep_good))
             if i4 < lasti4
                 print(fout, ", ")
             else
@@ -938,13 +967,13 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     σs=[0.25, 0.5, 0.75, 1.0, 1.25], 
     τs=[0.0, 1.28, 1.5, 1.645, 2.0, 2.33, 2.5],
     clusterSizes=[5, 7, 20, 100],
-    maxsd = 0.5,
+    maxsd = 0.5, targetIter = 1000,
     seed = 875234788510)::SimInfo
     Random.seed!(seed)
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
-    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(maxsd))
+    siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(targetIter))
     nIter = 1
     nextReportTime = DateTime(2000)
     while !isDone(siminfo)
@@ -1001,11 +1030,10 @@ function post_push(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
     if msepinfo.done || n < msepinfo.nextCheck
         return
     end
-    sd = std(msepinfo.msep)
-    if sd/sqrt(n) ≤ sp.maxSE
+    if stderr(msepinfo) ≤ sp.maxSE
         setDone!(si, i1, i2, i3, i4, i5)
     else
-        msepinfo.nextCheck = clamp(ceil(0.8*(sd/sp.maxSE)^2), n+3, n+50)
+        msepinfo.nextCheck = clamp(ceil(0.8*(std(msepinfo)/sp.maxSE)^2), n+3, n+50)
     end
 end
 
@@ -1037,7 +1065,7 @@ myr = EVRequests([
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
 
-si = big4sim(myr; maxsd=8)
+si = big4sim(myr; targetIter = 30)
 toCSV("bigsim4.csv", si)
 open("bigsim4.jld", "w") do io
     serialize(io, si)

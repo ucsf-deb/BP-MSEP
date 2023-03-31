@@ -23,7 +23,7 @@ export condzy1
 export LogisticABEvaluator, LogisticBPEvaluator, LogisticSimpleEvaluator, LogisticCutoffEvaluator, Evaluator, CutoffAGK
 export name, description, name_with_suffix, zhat, zsimp
 export zSQdensity, wDensity, make_zAB_generator, make_zAS_generator, make_zCT_generator
-export simulate, bigsim, msep, msepabs, msepabscnt, bigbigsim, big3sim, rearrange, twoToOne
+export simulate, bigsim, msep, msepabs, sepabs, bigbigsim, big3sim, rearrange, twoToOne
 
 # includes at bottom since they use some of symbols defined earlier
 

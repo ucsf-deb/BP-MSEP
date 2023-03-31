@@ -23,6 +23,15 @@ function msepabs(r::DataFrame, τ::Float64, col = :zhat)::Float64
     return mean((r[keep, :z] - r[keep, col]).^2)
 end
 
+"""
+return vector of individual squared errors of prediction.
+Return it only for |z| > τ
+"""
+function sepabs(r::DataFrame, τ::Float64, col = :zhat)::Vector{Float64}
+    keep = abs.(r.z) .> τ
+    (r[keep, :z] - r[keep, col]).^2
+end
+
 function msepabs(r::DataFrame, τs, col = :zhat)::Vector
     return [msepabs(r, τ, col) for τ in τs]
 end

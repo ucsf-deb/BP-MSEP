@@ -332,25 +332,84 @@ mutable struct MSEPInfo
     "number of underlying clusters for value in msep_good"
     n_good::Vector{Int}
 
+    """
+    next block of variables accumlates results for individual
+    clusters directly, using an online algorithm by Wefford:
+    https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+    It is fed values for MSEP for each qualifying cluster, and
+    keeps quantities that allow computation of mean and variance
+    so far.
+    """
+    mean::Float64
+    "Sum of square differences"
+    SSD::Float64
+    "clusters represented in previous 2 fields"
+    nClusters::Int
+
     ## cache
     stderr::Float64
     estimated_iterations::Int
 end
 
 function MSEPInfo(firstCheck=7)
-    MSEPInfo(false, firstCheck, Vector{Float64}(), Vector{Float64}(), Vector{Int}(), -1.0, -1)
+    MSEPInfo(false, firstCheck, Vector{Float64}(), Vector{Float64}(), Vector{Int}(),
+    0.0, 0.0, 0, -1.0, -1)
+end
+
+"""
+receive a new batch of SEP values
+Most of our measures only consider the results for certain true z
+values.  Only the relevant values should be passed in.
+The list of arguments should all be regular numbers, but
+the list itself may be empty.
+
+To get proper counts of simulations and records of the mean values
+per iteration, call this once per simulation.
+
+Return true if the mean and sd changed
+"""
+function addSEP(mi::MSEPInfo, vs::Vector{Float64})::Bool
+    if isempty(vs)
+        push!(mi.msep, NaN)
+        return false
+    end
+
+    # update simulation level information
+    m = mean(vs)
+    push!(mi.msep, m)
+    push!(mi.msep_good, m)
+    push!(mi.n_good, length(vs))
+    for v in vs
+        if mi.nClusters ≤ 0
+            mi.mean = v
+            mi.nClusters = 1
+            # SSD remains 0
+            continue
+        end
+        oldm = mi.mean
+        mi.mean += (v-oldm)/(mi.nClusters + 1)
+        mi.SSD += (v-oldm)*(v-mi.mean)
+        mi.nClusters += 1
+    end
+    # invalidate cache
+    mi.stderr = -1.0
+    mi.estimated_iterations = -1
+    return true
 end
 
 function Statistics.mean(mi::MSEPInfo)
-    mean(mi.msep_good)
+    mi.mean
 end
 
 function Statistics.std(mi::MSEPInfo)
-    std(mi.msep_good)
+    if mi.nClusters < 2
+        return NaN
+    end
+    return sqrt(mi.SSD/(mi.nClusters-1))
 end
 
 function stderr(mi::MSEPInfo)
-    std(mi)/sqrt(length(mi.msep_good))
+    std(mi)/sqrt(mi.nClusters)
 end
 
 """
@@ -558,24 +617,6 @@ end
 
 # without the Base. in the definition below *all* uses
 # of push! apparently resolve to this function (and fail)
-"""append a new result to the existing ones
-msepcnt is (msep, n) as returned by msepabscnt
-"""
-function Base.push!(si::SimInfo, msepcnt, i1, i2, i3, i4, i5)
-    mi = si.msep[i1, i2, i3, i4, i5]
-    (msep, n) = msepcnt
-    push!(mi.msep, msep)
-    if isfinite(msep)
-        push!(mi.msep_good, msep)
-        push!(mi.n_good, n)
-        # since the validity is managed in main data structures
-        # do not delegate this part to policy.
-        # if msep was NaN there is no good data, and so no need to
-        # invalidate.
-        invalidate(si, i1, i2, i3, i4, i5)
-    end
-    post_push(si.policy, si, i1, i2, i3, i4, i5)
-end
 
 "number of iterations completely finished"
 function iter_complete(si::SimInfo, i1, i2, i3, i4, i5)::Int
@@ -638,7 +679,12 @@ end
 function estimated_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
     msi = si.msep[i1, i2, i3, i4, i5] # MSEP info
     if msi.estimated_iterations < 0
-        sd = std(msi)
+        # careful: std(msi) is now sd of individual cluster
+        # when |z| > τ.  The n it is based on is not the
+        # number of iterations.
+        # So instead see what precision we have achieved so far,
+        # and inflate by number of iterations.
+        sd = stderr(msi)*sqrt(iter_complete(si, i1, i2, i3, i4, i5))
         msi.estimated_iterations = max(ceil((sd/sp.maxSE)^2), sp.minIter)
     end
     return msi.estimated_iterations
@@ -916,7 +962,7 @@ function toCSV(file, si::SimInfo)
             print(fout, stderr(si.msep[i1, i2, i3, i4, i5]), ", ")
         end
         for i4 in axes(si.msep, 4)
-            print(fout, length(si.msep[i1, i2, i3, i4, i5].msep_good))
+            print(fout, si.msep[i1, i2, i3, i4, i5].nClusters)
             if i4 < lasti4
                 print(fout, ", ")
             else
@@ -1004,7 +1050,14 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                     started!(siminfo, i1, i2, i3, i4, i5)
                     msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
                     # even if things are good enough, this is cheap to compute
-                    push!(siminfo, msepabscnt(multi.clusters, τ), i1, i2, i3, i4, i5)
+                    if addSEP(siminfo.msep[i1, i2, i3, i4, i5], sepabs(multi.clusters, τ))
+                        # since the validity is managed in main data structures
+                        # do not delegate this part to policy.
+                        # if msep was NaN there is no good data, and so no need to
+                        # invalidate.
+                        invalidate(siminfo, i1, i2, i3, i4, i5)
+                    end
+                    post_push(siminfo.policy, siminfo, i1, i2, i3, i4, i5)
                     finished!(siminfo, i1, i2, i3, i4, i5)
                 end
                 finished!(siminfo, i1, i2, i3, i4)

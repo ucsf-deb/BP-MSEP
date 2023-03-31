@@ -329,8 +329,6 @@ mutable struct MSEPInfo
     "only those results that are finite, i.e., not missing or NaN"
     msep_good::Vector{Float64}
 
-    ## To Do: n_good needs to be populated in, probably, used
-    ## populating it will require additional argument to push!.
     "number of underlying clusters for value in msep_good"
     n_good::Vector{Int}
 
@@ -560,13 +558,20 @@ end
 
 # without the Base. in the definition below *all* uses
 # of push! apparently resolve to this function (and fail)
-"append a new result to the existing ones"
-function Base.push!(si::SimInfo, msep, i1, i2, i3, i4, i5)
-    push!(si.msep[i1, i2, i3, i4, i5].msep, msep)
+"""append a new result to the existing ones
+msepcnt is (msep, n) as returned by msepabscnt
+"""
+function Base.push!(si::SimInfo, msepcnt, i1, i2, i3, i4, i5)
+    mi = si.msep[i1, i2, i3, i4, i5]
+    (msep, n) = msepcnt
+    push!(mi.msep, msep)
     if isfinite(msep)
-        push!(si.msep[i1, i2, i3, i4, i5].msep_good, msep)
+        push!(mi.msep_good, msep)
+        push!(mi.n_good, n)
         # since the validity is managed in main data structures
         # do not delegate this part to policy.
+        # if msep was NaN there is no good data, and so no need to
+        # invalidate.
         invalidate(si, i1, i2, i3, i4, i5)
     end
     post_push(si.policy, si, i1, i2, i3, i4, i5)
@@ -999,7 +1004,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                     started!(siminfo, i1, i2, i3, i4, i5)
                     msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
                     # even if things are good enough, this is cheap to compute
-                    push!(siminfo, msepabs(multi.clusters, τ), i1, i2, i3, i4, i5)
+                    push!(siminfo, msepabscnt(multi.clusters, τ), i1, i2, i3, i4, i5)
                     finished!(siminfo, i1, i2, i3, i4, i5)
                 end
                 finished!(siminfo, i1, i2, i3, i4)

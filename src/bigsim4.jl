@@ -887,6 +887,12 @@ function report(io::IO, si::SimInfo)
     report(io, si.policy, si)
 end
 
+"Use a friendlier DateTime format without unnecessary precision"
+function fmt(dt::DateTime)::String
+    # Dates doesn't seem to export format
+    Dates.format(dt, dateformat"Y-mm-dd HH:MM:SS")
+end
+
 function report(io::IO, sp::SimSE, si::SimInfo)
     outer_iter = iter_complete(si)
     if outer_iter < sp.minIter
@@ -903,7 +909,7 @@ function report(io::IO, sp::SimSE, si::SimInfo)
             islice in Iterators.product((axes(si.msep, i) for i in 1:4)...)])
         @printf(io, "%d:%5.2f (h:mm) remaining Outer Iterations = %d; Data iterations = %d; Estimator iterations = %d", 
             remainingHours, remainingMinutes, remainingIterations0, remainingIterations3, remainingIterations4)
-        print(io, " as of $(now()) @ Outer Iter $(outer_iter)\n")
+        print(io, " as of $(fmt(now())) @ Outer Iter $(outer_iter)\n")
     end 
 end
 
@@ -914,7 +920,7 @@ function report(io::IO, sp::SimNIter, si::SimInfo)
     remainingIterations0 = remaining_iterations(sp, si)
     @printf(io, "%d:%05.2f (h:mm) remaining in %d Iterations as of iteration %d ", 
         remainingHours, remainingMinutes, remainingIterations0, outer_iter)
-    println(io, "as of $(now())")
+    println(io, "as of $(fmt(now()))")
 end
 
 
@@ -1076,7 +1082,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     (totH, totM) = divrem(total_minutes, 60)
     @printf("Finished after %d:%05.2f (h:mm) and %d iterations. Largest std err %7.3f",
         totH, totM, iter_complete(siminfo), maxSE(siminfo))
-    println(" at $(now()).")
+    println(" at $(fmt(now())).")
     return siminfo
 end
 
@@ -1123,12 +1129,12 @@ myr = EVRequests([
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
 
-si = big4sim(myr; targetIter = 10000)
+si = big4sim(myr; targetIter = 30) #10000)
 try
     # if someone has a lock on the file the next operation will fail.
     toCSV("bigsim4.csv", si)
 catch exc
-    showerror(stderr, exc)
+    showerror(stdout, exc)
 end
 open("bigsim4.jld", "w") do io
     serialize(io, si)

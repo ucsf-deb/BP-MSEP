@@ -1129,7 +1129,7 @@ myr = EVRequests([
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
 
-si = big4sim(myr; targetIter = 30) #10000)
+si = big4sim(myr; targetIter = 10000)
 try
     # if someone has a lock on the file the next operation will fail.
     toCSV("bigsim4.csv", si)

@@ -18,7 +18,7 @@ function msep(r::DataFrame, τs, col = :zhat )::Vector
 end
 
 function msepabs(r::DataFrame, τ::Float64, col = :zhat)::Float64
-    "compute MSEP for all |z| > \tau"
+    "compute MSEP for all |z| > τ"
     keep = abs.(r.z) .> τ
     return mean((r[keep, :z] - r[keep, col]).^2)
 end

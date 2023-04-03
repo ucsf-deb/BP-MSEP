@@ -408,7 +408,9 @@ function Statistics.std(mi::MSEPInfo)
     return sqrt(mi.SSD/(mi.nClusters-1))
 end
 
-function stderr(mi::MSEPInfo)
+# stderr is already in use as file name
+"standard error"
+function se(mi::MSEPInfo)
     std(mi)/sqrt(mi.nClusters)
 end
 
@@ -647,22 +649,22 @@ function nClusters(clusterSize)::Int
 end
 
 ##### Assessing how much work is done and how much remains
-function stderr(si::SimInfo, i1, i2, i3, i4, i5)
+function se(si::SimInfo, i1, i2, i3, i4, i5)
     msi = si.msep[i1, i2, i3, i4, i5] # MSEP info
     if msi.stderr < 0.0
-        msi.stderr = stderr(msi)
+        msi.stderr = se(msi)
     end
     return msi.stderr
 end
 
 "standard error of all scenarios"
-function stderr(si::SimInfo)
-    return [stderr(si, Tuple(ix)...) for ix in CartesianIndices(si.msep)]
+function se(si::SimInfo)
+    return [se(si, Tuple(ix)...) for ix in CartesianIndices(si.msep)]
 end
 
 "biggest std err across all scenarios"
 function maxSE(si::SimInfo)
-    return maximum(stderr(si))
+    return maximum(se(si))
 end
 
 """
@@ -684,7 +686,7 @@ function estimated_iterations(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
         # number of iterations.
         # So instead see what precision we have achieved so far,
         # and inflate by number of iterations.
-        sd = stderr(msi)*sqrt(iter_complete(si, i1, i2, i3, i4, i5))
+        sd = se(msi)*sqrt(iter_complete(si, i1, i2, i3, i4, i5))
         msi.estimated_iterations = max(ceil((sd/sp.maxSE)^2), sp.minIter)
     end
     return msi.estimated_iterations
@@ -965,7 +967,7 @@ function toCSV(file, si::SimInfo)
             print(fout, mean(si.msep[i1, i2, i3, i4, i5]), ", ")
         end
         for i4 in axes(si.msep, 4)
-            print(fout, stderr(si.msep[i1, i2, i3, i4, i5]), ", ")
+            print(fout, se(si.msep[i1, i2, i3, i4, i5]), ", ")
         end
         for i4 in axes(si.msep, 4)
             print(fout, si.msep[i1, i2, i3, i4, i5].nClusters)
@@ -1033,7 +1035,10 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(targetIter))
     nIter = 1
     nextReportTime = DateTime(2000)
-    while !isDone(siminfo)
+    ##test start
+    keepGoing = true
+    while !isDone(siminfo) && keepGoing
+    ## test end but keep main while
         started!(siminfo)
         for (i1, μ) in enumerate(μs), (i2, σ) in enumerate(σs), (i3, ncs) in enumerate(clusterSizes)
             if isDone(siminfo, i1, i2, i3)
@@ -1041,17 +1046,38 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             end
             started!(siminfo, i1, i2, i3)
             multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
+            ## testing
+            if nIter < 8378
+                continue
+            elseif nIter > 8378
+                println("Past iter 8378. Terminating loop.")
+                keepGoing = false
+                break
+            end
+            if μ != -2.0 || σ != 0.5 || ncs != 20
+                continue
+            end
+            ### testing
             multi.clusters.zhat .= -100.0 # broadcast to make new columns
             for (i4, fest) in enumerate(evr)
                 if isDone(siminfo, i1, i2, i3, i4)
                     continue
                 end
+
                 started!(siminfo, i1, i2, i3, i4)
                 ev = fest(μ, σ) # construct appropriate evaluator
-
+                ## test
+                if name(ev) != "zSQ" || ev.λ !=0.4
+                    continue
+                end
+                ## test
                 # do the estimation. results in multi
                 simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
-
+                ## test
+                open("screwy-Multi.jld", "w") do io
+                    serialize(io, multi)
+                end
+                ## test
                 for (i5, τ) in enumerate(τs)
                     started!(siminfo, i1, i2, i3, i4, i5)
                     msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
@@ -1061,12 +1087,17 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                         # do not delegate this part to policy.
                         # if msep was NaN there is no good data, and so no need to
                         # invalidate.
+                        ## test
+                        println(τ, " : ", last(siminfo.msep[i1, i2, i3, i4, i5].msep))
                         invalidate(siminfo, i1, i2, i3, i4, i5)
                     end
                     post_push(siminfo.policy, siminfo, i1, i2, i3, i4, i5)
                     finished!(siminfo, i1, i2, i3, i4, i5)
                 end
                 finished!(siminfo, i1, i2, i3, i4)
+                ## test start
+                keepGoing = false
+                ## test end
             end
             finished!(siminfo, i1, i2, i3)
         end
@@ -1094,7 +1125,7 @@ function post_push(sp::SimSE, si::SimInfo, i1, i2, i3, i4, i5)
     if msepinfo.done || n < msepinfo.nextCheck
         return
     end
-    if stderr(msepinfo) ≤ sp.maxSE
+    if se(msepinfo) ≤ sp.maxSE
         setDone!(si, i1, i2, i3, i4, i5)
     else
         msepinfo.nextCheck = clamp(ceil(0.8*(std(msepinfo)/sp.maxSE)^2), n+3, n+50)
@@ -1128,14 +1159,21 @@ myr = EVRequests([
 =#
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
-
-si = big4sim(myr; targetIter = 10000)
-try
-    # if someone has a lock on the file the next operation will fail.
-    toCSV("bigsim4.csv", si)
-catch exc
-    showerror(stdout, exc)
+si = big4sim(myr; targetIter = 10000);
+if false
+    si = big4sim(myr; targetIter = 10000)
+    try
+        # if someone has a lock on the file the next operation will fail.
+        toCSV("bigsim4.csv", si)
+    catch exc
+        showerror(stdout, exc)
+    end
+    open("bigsim4.jld", "w") do io
+        serialize(io, si)
+    end
 end
-open("bigsim4.jld", "w") do io
-    serialize(io, si)
+
+if false
+    si = deserialize("src/bigsim4.jld");
+    mi = si.msep["-2.0", "0.5", "20", "zSQ(λ=0.4)", "2.5"];
 end

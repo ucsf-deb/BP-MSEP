@@ -1092,7 +1092,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                         # if msep was NaN there is no good data, and so no need to
                         # invalidate.
                         ## test
-                        println(τ, " : ", last(siminfo.msep[i1, i2, i3, i4, i5].msep))
+                        println(τ, " : ", siminfo.msep[i1, i2, i3, i4, i5].msep[1])
                         invalidate(siminfo, i1, i2, i3, i4, i5)
                     end
                     post_push(siminfo.policy, siminfo, i1, i2, i3, i4, i5)

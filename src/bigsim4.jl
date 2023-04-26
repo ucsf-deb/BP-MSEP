@@ -1047,16 +1047,19 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             started!(siminfo, i1, i2, i3)
             multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
             ## testing
-            if nIter < 8378
-                continue
-            elseif nIter > 8378
-                println("Past iter 8378. Terminating loop.")
-                keepGoing = false
-                break
+            if false
+                if nIter < 8378
+                    continue
+                elseif nIter > 8378
+                    println("Past iter 8378. Terminating loop.")
+                    keepGoing = false
+                    break
+                end
+                if μ != -2.0 || σ != 0.5 || ncs != 20
+                    continue
+                end
             end
-            if μ != -2.0 || σ != 0.5 || ncs != 20
-                continue
-            end
+            # we are just going to do the first
             ### testing
             multi.clusters.zhat .= -100.0 # broadcast to make new columns
             for (i4, fest) in enumerate(evr)
@@ -1067,16 +1070,17 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 started!(siminfo, i1, i2, i3, i4)
                 ev = fest(μ, σ) # construct appropriate evaluator
                 ## test
-                if name(ev) != "zSQ" || ev.λ !=0.4
+                if !keepGoing    #name(ev) != "zSQ" || ev.λ !=0.4
                     continue
                 end
                 ## test
                 # do the estimation. results in multi
                 simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
                 ## test
-                open("screwy-Multi.jld", "w") do io
+                open("screwy01-Multi.jld", "w") do io
                     serialize(io, multi)
                 end
+                println("leading indices ", i1, i2, i3, i4)
                 ## test
                 for (i5, τ) in enumerate(τs)
                     started!(siminfo, i1, i2, i3, i4, i5)

@@ -1070,11 +1070,11 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 ev = fest(μ, σ) # construct appropriate evaluator
 
                 ## test
-                if nIter == 2 && i1 == 1 && i2 == 1 && i3==1
+                if nIter == 3 && i1 == 1 && i2 == 1 && i3==1 && name(ev) == "zSQ" && ev.λ ==0.4
                     # do the estimation. results in multi
                     simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
                     isfocus = true
-                    open("screwy02-Multi.jld", "w") do io
+                    open("screwy03-Multi.jld", "w") do io
                         serialize(io, multi)
                     end
                 else
@@ -1084,13 +1084,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 end
                 ## test
                 if isfocus
-                    if i4 == 1  #name(ev) != "zSQ" || ev.λ !=0.4
-                        println("leading indices ", i1, i2, i3, i4)
-                    else
-                        isfocus = false
-                    end
-                end
-                if isfocus
+                    println("leading indices ", i1, i2, i3, i4)
                     for (i5, τ) in enumerate(τs)
                         started!(siminfo, i1, i2, i3, i4, i5)
                         msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
@@ -1170,7 +1164,7 @@ myr = EVRequests([
 =#
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
-si = big4sim(myr; targetIter = 2);
+si = big4sim(myr; targetIter = 3);
 if false
     si = big4sim(myr; targetIter = 10000)
     try

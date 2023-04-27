@@ -1069,8 +1069,8 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 started!(siminfo, i1, i2, i3, i4)
                 ev = fest(μ, σ) # construct appropriate evaluator
 
-                ## test
-                if nIter == 3 && i1 == 1 && i2 == 1 && i3==1 && name(ev) == "zSQ" && ev.λ ==0.4
+                ## test "-2.0", "0.5", "20", "zSQ(λ=0.4)", "2.5"
+                if nIter == 3 && μ == -2.0 && σ == 0.5 && ncs == 20 && name(ev) == "zSQ" && ev.λ ==0.4
                     # do the estimation. results in multi
                     simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
                     isfocus = true

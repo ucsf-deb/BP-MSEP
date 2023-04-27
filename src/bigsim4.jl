@@ -1014,7 +1014,10 @@ function simulate(si::SimInfo, ml::MultiLevel, ev::Evaluator, nclustersize::Int,
         wait(t)
     end
 end
-
+###test
+function nothing_burger()
+    return 2
+end
 
 """
 Simulate over the range of scenarios given by the arguments,
@@ -1035,10 +1038,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     siminfo = SimInfo(evr, μs, σs, τs, clusterSizes, SimNIter(targetIter))
     nIter = 1
     nextReportTime = DateTime(2000)
-    ##test start
-    keepGoing = true
-    while !isDone(siminfo) && keepGoing
-    ## test end but keep main while
+    while !isDone(siminfo)
         started!(siminfo)
         for (i1, μ) in enumerate(μs), (i2, σ) in enumerate(σs), (i3, ncs) in enumerate(clusterSizes)
             if isDone(siminfo, i1, i2, i3)
@@ -1059,7 +1059,6 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                     continue
                 end
             end
-            # we are just going to do the first
             ### testing
             multi.clusters.zhat .= -100.0 # broadcast to make new columns
             for (i4, fest) in enumerate(evr)
@@ -1069,39 +1068,47 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
 
                 started!(siminfo, i1, i2, i3, i4)
                 ev = fest(μ, σ) # construct appropriate evaluator
+
                 ## test
-                if !keepGoing    #name(ev) != "zSQ" || ev.λ !=0.4
-                    continue
-                end
-                ## test
-                # do the estimation. results in multi
-                simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
-                ## test
-                open("screwy01-Multi.jld", "w") do io
-                    serialize(io, multi)
-                end
-                println("leading indices ", i1, i2, i3, i4)
-                ## test
-                for (i5, τ) in enumerate(τs)
-                    started!(siminfo, i1, i2, i3, i4, i5)
-                    msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
-                    # even if things are good enough, this is cheap to compute
-                    if addSEP(siminfo.msep[i1, i2, i3, i4, i5], sepabs(multi.clusters, τ))
-                        # since the validity is managed in main data structures
-                        # do not delegate this part to policy.
-                        # if msep was NaN there is no good data, and so no need to
-                        # invalidate.
-                        ## test
-                        println(τ, " : ", siminfo.msep[i1, i2, i3, i4, i5].msep[1])
-                        invalidate(siminfo, i1, i2, i3, i4, i5)
+                if nIter == 2 && i1 == 1 && i2 == 1 && i3==1
+                    # do the estimation. results in multi
+                    simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
+                    isfocus = true
+                    open("screwy02-Multi.jld", "w") do io
+                        serialize(io, multi)
                     end
-                    post_push(siminfo.policy, siminfo, i1, i2, i3, i4, i5)
-                    finished!(siminfo, i1, i2, i3, i4, i5)
+                else
+                    # there is some risk this will be optimized away
+                    tasks = [Threads.@spawn nothing_burger() for i in 1:Threads.nthreads()]
+                    isfocus = false
+                end
+                ## test
+                if isfocus
+                    if i4 == 1  #name(ev) != "zSQ" || ev.λ !=0.4
+                        println("leading indices ", i1, i2, i3, i4)
+                    else
+                        isfocus = false
+                    end
+                end
+                if isfocus
+                    for (i5, τ) in enumerate(τs)
+                        started!(siminfo, i1, i2, i3, i4, i5)
+                        msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
+                        # even if things are good enough, this is cheap to compute
+                        if addSEP(siminfo.msep[i1, i2, i3, i4, i5], sepabs(multi.clusters, τ))
+                            # since the validity is managed in main data structures
+                            # do not delegate this part to policy.
+                            # if msep was NaN there is no good data, and so no need to
+                            # invalidate.
+                            ## test
+                            println(τ, " : ", siminfo.msep[i1, i2, i3, i4, i5].msep[1])
+                            invalidate(siminfo, i1, i2, i3, i4, i5)
+                        end
+                        post_push(siminfo.policy, siminfo, i1, i2, i3, i4, i5)
+                        finished!(siminfo, i1, i2, i3, i4, i5)
+                    end
                 end
                 finished!(siminfo, i1, i2, i3, i4)
-                ## test start
-                keepGoing = false
-                ## test end
             end
             finished!(siminfo, i1, i2, i3)
         end
@@ -1163,7 +1170,7 @@ myr = EVRequests([
 =#
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
-si = big4sim(myr; targetIter = 10000);
+si = big4sim(myr; targetIter = 2);
 if false
     si = big4sim(myr; targetIter = 10000)
     try

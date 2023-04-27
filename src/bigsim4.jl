@@ -1046,20 +1046,6 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
             end
             started!(siminfo, i1, i2, i3)
             multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
-            ## testing
-            if false
-                if nIter < 8378
-                    continue
-                elseif nIter > 8378
-                    println("Past iter 8378. Terminating loop.")
-                    keepGoing = false
-                    break
-                end
-                if μ != -2.0 || σ != 0.5 || ncs != 20
-                    continue
-                end
-            end
-            ### testing
             multi.clusters.zhat .= -100.0 # broadcast to make new columns
             for (i4, fest) in enumerate(evr)
                 if isDone(siminfo, i1, i2, i3, i4)
@@ -1070,7 +1056,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 ev = fest(μ, σ) # construct appropriate evaluator
 
                 ## test "-2.0", "0.5", "20", "zSQ(λ=0.4)", "2.5"
-                if nIter == 3 && μ == -2.0 && σ == 0.5 && ncs == 20 && name(ev) == "zSQ" && ev.λ ==0.4
+                if nIter == 8378 && μ == -2.0 && σ == 0.5 && ncs == 20 && name(ev) == "zSQ" && ev.λ ==0.4
                     # do the estimation. results in multi
                     simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
                     isfocus = true
@@ -1164,7 +1150,7 @@ myr = EVRequests([
 =#
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
-si = big4sim(myr; targetIter = 3);
+si = big4sim(myr; targetIter = 8378);
 if false
     si = big4sim(myr; targetIter = 10000)
     try

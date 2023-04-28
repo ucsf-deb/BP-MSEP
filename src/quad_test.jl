@@ -4,7 +4,7 @@ See how sensitive results of quadrature are to order in the σ=1 - 1.25 range.
 This is NOT part of the main project, though it uses that project
 """
 
-using DataFrames, MSEP, NamedArrays, Random
+using DataFrames, MSEP, NamedArrays, Random, Serialization
 
 """Produce a data frame with exactly one cluster for each possible value of
 sum of Y.  Position of successes is random.
@@ -12,7 +12,7 @@ sum of Y.  Position of successes is random.
 function one_of_each(; nClusterSize=7, seed=1958590 )
     Random.seed!(seed)
     df = DataFrame(cid=repeat(0:nClusterSize, inner=nClusterSize),
-            Y=fill(false, nClusterSize*(nClusterSize+1)))
+            Y=BitVector(fill(false, nClusterSize*(nClusterSize+1))))
     indices = collect(1:nClusterSize)
     for i in 1:nClusterSize
         Random.randperm!(indices)
@@ -34,17 +34,16 @@ function quad_test(df::DataFrame; σ=1.0, orders=3:15)
     nOrders = length(orders)
     r = NamedArray(zeros(nClusters, nOrders), (0:(nClusters-1), orders), ("Y", "order"))
     λ = 0.4
-    k = -1.0
+    k = -2.0
     for iOrder in 1:nOrders
         order = orders[iOrder]
         ev = LogisticSimpleEvaluator(λ, k, σ, order)
-        zip::UInt = 0
-        wa = MSEP.WorkArea(df, ev, MSEP.work(ev), MSEP.WZ, zip, zip, zip)
+        wa = MSEP.WorkArea(df, ev)
         for iCluster in 0:(nClusters-1)
             wa.i_start = 1 + nClusterSize*iCluster
             wa.i_end = nClusterSize*(iCluster+1)
             wa.i_cluster = iCluster+1
-            r[iCluster+1, iOrder] = zsimp(ev, wa)
+            r[iCluster+1, iOrder] = zhat(ev, wa)
         end
     end
     return r
@@ -60,6 +59,8 @@ println()
 println("σ=1.25 results follow:")
 r2 =quad_test(testdat, σ=1.25, orders=orders)
 =#
+
+#=
 
 """
 Ross- could you send me the values you are getting for numerical quadrature for z_SQ for the logistic model?  I want to check a Gauss-Hermite quadrature routine I have developed before I use it for further investigations.
@@ -91,3 +92,20 @@ write(ofile,"From quad_test.jl:quad2() on $(now())\n")
 write(ofile, "clusterSize,sigma,mu,lambda,sumY,zBP,zSQ\n")
 quad2(ofile)
 close(ofile)
+=#
+
+"""
+Test our latest weird result for 17/20 successes.
+"""
+function quad3()
+    clusterSize = 20
+    σ = 0.5
+    df = one_of_each(nClusterSize = clusterSize)
+    r = quad_test(df, σ = σ)
+    open("quad3.jld", "w") do io
+        serialize(io, r)
+    end
+    return r
+end
+
+quad3()

@@ -12,7 +12,7 @@ sum of Y.  Position of successes is random.
 function one_of_each(; nClusterSize=7, seed=1958590 )
     Random.seed!(seed)
     df = DataFrame(cid=repeat(0:nClusterSize, inner=nClusterSize),
-            Y=BitVector(fill(false, nClusterSize*(nClusterSize+1))))
+            Y=falses(nClusterSize*(nClusterSize+1)))
     indices = collect(1:nClusterSize)
     for i in 1:nClusterSize
         Random.randperm!(indices)

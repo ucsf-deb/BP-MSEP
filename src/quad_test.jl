@@ -105,7 +105,6 @@ function quad3()
     open("quad3b.jld", "w") do io
         serialize(io, r)
     end
-    show(r)
     return r
 end
 

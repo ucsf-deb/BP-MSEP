@@ -101,9 +101,10 @@ end
 
 function (aagk::AgnosticAGK)(f; segbuf=nothing)
     δ = sqrt(eps())
-    value, err = quadgk(f, -Inf, Inf, order=aagk.order,
-        atol=δ, segbuf=segbuf)
-    if err > 2*max(δ, δ*value)
+    value, err = quadgk(f, -Inf, Inf, order=aagk.order, segbuf=segbuf)
+        #atol=δ, segbuf=segbuf)
+    #if err > 2*max(δ, δ*abs(value))
+    if err > 2*δ*abs(value)
         error("Unable to integrate accurately")
     end
     return value

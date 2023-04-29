@@ -102,9 +102,10 @@ function quad3()
     σ = 0.5
     df = one_of_each(nClusterSize = clusterSize)
     r = quad_test(df, σ = σ)
-    open("quad3.jld", "w") do io
+    open("quad3b.jld", "w") do io
         serialize(io, r)
     end
+    show(r)
     return r
 end
 

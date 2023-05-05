@@ -104,8 +104,10 @@ function (aagk::AgnosticAGK)(f; segbuf=nothing)
     value, err = quadgk(f, -Inf, Inf, order=aagk.order, segbuf=segbuf)
         #atol=δ, segbuf=segbuf)
     #if err > 2*max(δ, δ*abs(value))
-    if err > 2*δ*abs(value)
-        error("Unable to integrate accurately")
+    # 2nd test means if 0 is a possible value of the integral
+    # we will ignore failures in relative tolerance.
+    if err > 2*δ*abs(value) && err < abs(value)
+        error("Unable to integrate accurately: $(value) ± $(err)")
     end
     return value
 end

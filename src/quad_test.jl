@@ -28,16 +28,14 @@ integration orders.
 Returns a named array in which each row represents a single cluster (named by cid)
 and each column a particular order for the quadrature (name is the order)
 """
-function quad_test(df::DataFrame; σ=1.0, orders=3:15)
+function quad_test(df::DataFrame; μ=-2.0, σ=1.0, λ=0.4, orders=3:15)
     nClusters = maximum(df.cid)+1
     nClusterSize = sum(df.cid .== 1)
     nOrders = length(orders)
     r = NamedArray(zeros(nClusters, nOrders), (0:(nClusters-1), orders), ("Y", "order"))
-    λ = 0.4
-    k = -2.0
     for iOrder in 1:nOrders
         order = orders[iOrder]
-        ev = LogisticSimpleEvaluator(λ, k, σ, order)
+        ev = LogisticSimpleEvaluator(λ, μ, σ, order)
         wa = MSEP.WorkArea(df, ev)
         for iCluster in 0:(nClusters-1)
             wa.i_start = 1 + nClusterSize*iCluster
@@ -94,6 +92,7 @@ quad2(ofile)
 close(ofile)
 =#
 
+#=
 """
 Test our latest weird result for 17/20 successes.
 """
@@ -109,3 +108,26 @@ function quad3()
 end
 
 quad3()
+=#
+
+"""
+See how quadrature with only relative tolerance handles something that 
+has ∫wz = 0.  Should happen at 5/10 if μ=0. It does.
+eps()= 2.220446049250313e-16
+integrated value = 4.988808992368565e-20
+estimated error = 1.7056524166776223e-19
+-> error("Unable to integrate accurately")
+"""
+function quad4()
+    clusterSize = 10
+    σ = 1.0
+    df = one_of_each(nClusterSize = clusterSize)
+    r = quad_test(df, μ = 0.0, σ = σ)
+    open("quad4.jld", "w") do io
+        serialize(io, r)
+    end
+    return r
+end
+
+r4 = quad4()
+print((r4[4:7, :]))

@@ -41,6 +41,10 @@ function quad_test(df::DataFrame; μ=-2.0, σ=1.0, λ=0.4, orders=3:15)
             wa.i_start = 1 + nClusterSize*iCluster
             wa.i_end = nClusterSize*(iCluster+1)
             wa.i_cluster = iCluster+1
+            ##temporary block follows
+            if iCluster == 5
+                print(order)
+            end
             r[iCluster+1, iOrder] = zhat(ev, wa)
         end
     end

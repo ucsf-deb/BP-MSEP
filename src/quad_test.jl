@@ -5,6 +5,7 @@ This is NOT part of the main project, though it uses that project
 """
 
 using DataFrames, MSEP, NamedArrays, Random, Serialization
+using StatsFuns  #logit
 
 """Produce a data frame with exactly one cluster for each possible value of
 sum of Y.  Position of successes is random.
@@ -41,10 +42,6 @@ function quad_test(df::DataFrame; μ=-2.0, σ=1.0, λ=0.4, orders=3:15)
             wa.i_start = 1 + nClusterSize*iCluster
             wa.i_end = nClusterSize*(iCluster+1)
             wa.i_cluster = iCluster+1
-            ##temporary block follows
-            if iCluster == 5
-                print(order)
-            end
             r[iCluster+1, iOrder] = zhat(ev, wa)
         end
     end
@@ -121,17 +118,19 @@ eps()= 2.220446049250313e-16
 integrated value = 4.988808992368565e-20
 estimated error = 1.7056524166776223e-19
 -> error("Unable to integrate accurately")
+
+Try with μ set so p=0.3.  I think 3/10 will not integrate to 0.
 """
 function quad4()
     clusterSize = 10
     σ = 1.0
     df = one_of_each(nClusterSize = clusterSize)
-    r = quad_test(df, μ = 0.0, σ = σ)
-    open("quad4.jld", "w") do io
+    r = quad_test(df, μ = logit(0.3), σ = σ)
+    open("quad4b.jld", "w") do io
         serialize(io, r)
     end
     return r
 end
 
 r4 = quad4()
-print((r4[4:7, :]))
+print((r4[2:5, :]))

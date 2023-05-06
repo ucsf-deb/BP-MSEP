@@ -4,6 +4,7 @@ See how sensitive results of quadrature are to order in the σ=1 - 1.25 range.
 This is NOT part of the main project, though it uses that project
 """
 
+using CSV, Tables
 using DataFrames, MSEP, NamedArrays, Random, Serialization
 using StatsFuns  #logit
 
@@ -111,6 +112,24 @@ end
 quad3()
 =#
 
+"all ∑Y for clusterSize 100 and params of other simulation"
+function quad3c()
+    clusterSize = 100
+    σ = 1.0
+    df = one_of_each(nClusterSize = clusterSize)
+    r = quad_test(df, μ = -1.0,  σ = σ)
+    open("quad3c.jld", "w") do io
+        serialize(io, r)
+    end
+    open("quad3c.csv", "w") do io
+        # CSV.write does not accept a NamedArray directly
+        # and header does not autoconvert Int to String
+        CSV.write(io, header=[string(n) for n in names(r, 2)], Tables.table(r))
+    end
+    return r
+end
+
+quad3c()
 """
 See how quadrature with only relative tolerance handles something that 
 has ∫wz = 0.  Should happen at 5/10 if μ=0. It does.

@@ -12,14 +12,14 @@ function do_it()
     μ = -1.0
     σ = 1.0
     λ = 0.4
-    nclusters = 50
-    nclustersize = 100
+    nclusters = 250
+    nclustersize = 20
     Random.seed!(2345821)
     ev = LogisticSimpleEvaluator(λ, μ, σ)
     m = simulate(ev, nclusters=nclusters, nclustersize=nclustersize)
-    ofile = open("CEM01.csv", "w")
+    ofile = open("CEM01b.csv", "w")
     write(ofile, "Adaptive Gauss-Kronrod Results for zSQ($(λ)) from MSEP\n")
-    write(ofile, "For random intercept $(μ), sd = $(σ), $(nclusters) clusters of size $(nclustersize) each.\n")
+    write(ofile, "\"For random intercept $(μ), sd = $(σ), $(nclusters) clusters of size $(nclustersize) each.\n\"")
     write(ofile,"From CEM01.jl on $(now())\n")
     clus = m.clusters[:, [1, 2, 4, 5]] # drop redundant n and zsimp which is not filled in
     rename!(clus, ["truez", "id", "sumY", "zhat"])

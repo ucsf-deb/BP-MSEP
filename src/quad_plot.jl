@@ -53,13 +53,23 @@ function Base.show(io::IO, m::MIME"juliavscode/html", p::Gadfly.Plot)
 end
 
 function look(Y=17)
-    like = Like(-2.0, 0.5, 20, 0.4)
-    w(z) = wdens(like, z, Y)
+    like = Like(-1.0, 1.0, 100, 0.4)
+    evalsw = []
+    function w(z)
+        v = wdens(like, z, Y)
+        #append! puts z and w separately 
+        push!(evalsw, (z, v))
+        #print("$z: $v\n")
+        return v
+    end
+    #w(z) = wdens(like, z, Y)
     wz(z) = wzdens(like, z, Y)
     nrm(z) = ϕ(like, z)  # much higher values
-    p = plot([w, wz], -0.0, 12.0)
-    img = SVG("quad_plot.svg", 30cm, 20cm)
+    p = plot(w, -0.5, 0.5)
+    img = SVG("quad_plot3c.svg", 30cm, 20cm)
     draw(img, p)
+    print(evalsw)
+    print("max value = $(maximum(v for (z, v) in evalsw))")
 end
 
-look()
+look(27)

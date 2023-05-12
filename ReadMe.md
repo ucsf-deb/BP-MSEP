@@ -47,9 +47,15 @@ You will need to assemble a `julia` environment that includes the necessary pack
 
 Development was on `MS-Windows Server`.  It has no known Windows dependencies.
 
+Acknowledgements
+================
+This work is supported in part by funds from the National Institutes of Health (R01AG071535).
+
 Changes
 =======
 v0.2.0 2023-05-10 initial public release
+v0.2.1 pre-release
+   * Acknowledge funding.
 
 
 

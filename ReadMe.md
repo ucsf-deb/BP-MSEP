@@ -15,6 +15,8 @@ Although this project is `BP-MSEP` on github, the underlying package is called `
 
 Code that uses the package is not well-separated from code that defines the package.
 
+Getting reliably repeatable random numbers is challenging; see `Notes.md` for more.
+
 Pointers
 ========
 
@@ -54,8 +56,10 @@ This work is supported in part by funds from the National Institutes of Health (
 Changes
 =======
 v0.2.0 2023-05-10 initial public release
+
 v0.2.1 pre-release
    * Acknowledge funding.
+   * Change random number use to be more repeatable and add notes about it. Only in big4sim currently.
 
 
 

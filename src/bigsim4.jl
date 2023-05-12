@@ -1031,7 +1031,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
     clusterSizes=[5, 7, 20, 100],
     maxsd = 0.5, targetIter = 1000,
     seed = 875234788510)::SimInfo
-    Random.seed!(seed)
+
     #= Top of loop and data structures concerns the generated
     datasets.
     =#
@@ -1045,6 +1045,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 continue
             end
             started!(siminfo, i1, i2, i3)
+            Random.seed!(seed+nIter)
             multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
             multi.clusters.zhat .= -100.0 # broadcast to make new columns
             for (i4, fest) in enumerate(evr)

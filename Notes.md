@@ -1,6 +1,7 @@
 MSEP Simulation
+===============
 
-This simulates the performance of a mixed logistic model with weighted predictors to get $z_{\tt BP}$.  We use numerical integration to evaluate the predictor given a simulated set of $Y$ data. `bigsum()` is the top-level call; it's in `evaluator.jl`.
+This simulates the performance of a mixed logistic model with weighted predictors.  We use numerical integration to evaluate the predictor given a simulated set of $Y$ data. `bigsum()` (in `evaluator.jl`) and `big4sim()` (in `bigsim4.jl`) are example top-level calls.
 
 `dev`ed the `MixedModels` package to see what it does.  It will be under `~/.julia/dev/`.
 Added `DataFrames`
@@ -17,6 +18,41 @@ Required adding `RelocatableFolders` to base `1.8` environment; putting it in `M
 None of this makes much difference in the time it takes between when I press "Run and Debug" in VSCode and when it gets to the first breakpoint in `harness.jl`: 60-70s
 
 But using `@enter data=maker()` in the REPL does make a huge difference difference. After the first time, the startup delay is trivial.  However, `@run data=maker()` just causes it to hang.  It even hangs when I ask for help on it.
+
+Reproducible Simulations
+========================
+
+Summary
+-------
+We recommend `Random.seed!(k+i)` just before each generation of a new dataset, where `k` is an arbitrary constant and `i` is the iteration number.  So far, only the `big4sim()` code follows this pattern. There are a number of important limitations and caveats to this approach.
+
+Goals
+-----
+`julia`, like recent versions of `NumPy`, does [not guarantee](https://docs.julialang.org/en/v1/stdlib/Random/#Reproducibility) that setting the same seed will produce the same random numbers across different versions, even different minor versions, of the language.  The same discussion is silent about whether the numbers are reproducible across different architectures (hardware and operating system combinations) using the same version.
+
+The goal for this package is thus simply that the numbers be reproducible given the language version and the architecture.  The main purpose is to enable the rapid re-creation of a particular simulation for testing or debugging.
+
+"rapid" here means something other than re-running the entire simulation to that point.  For much of the current code, complete replay is the only option.
+
+Recommendation
+--------------
+`big4sim()` uses our currect recommendations: just before each dataset is generated (i.e., call to `maker()`), set the seed with a baseline seed + the simulation number.  For the default (as of `julia` 1.8) `Xoshiro` generator, this is safe--i.e., the streams really are independent--at least according to [some](https://discourse.julialang.org/t/multiple-independent-random-number-streams/98004/3?u=ross_boylan).
+
+Limitations
+-----------
+As noted, the generated numbers may not be stable across even minor versions of `julia`, and it is unclear if they are reliably stable across architectures.
+
+This pattern of setting the seed is not reliable in general; for many random number generators it induces some correlations across simulations.  The fact that some random people on the internet asserted that `Xoshiro` is immune to such problems is consirably short of proof.
+
+Those who are extra-cautious might want to explore one of the generators in the `abc123` package for `julia`.  However, it seems under-documented and under-maintained.
+
+Varying the number of threads or `julia` `Task`s can change the random numbers.  In `julia` 1.8 we [found](https://github.com/JuliaLang/julia/issues/49522#issue-1685607989) that the random numbers in the main thread varied with the number of threads (and consequently, number of tasks) the program was run with.  Although not shown in that report, this seemed true even when the tasks were spawned *after* generating the random numbers.  We think this behavior was introduced around `julia` 1.7, and it is [slated to be removed](https://github.com/JuliaLang/julia/issues/49064#issue-1632384309) in 1.10.  The problem is that spawning tasks changes the state of the parent random number generator.
+
+More generally, this is a reminder of potential interaction of random number generators with threads and tasks; in the `julia` 1.8 design each `Task` has its own random number generator (and the state change in the parent is in service of keeping them all independent).  Such interaction imply there could be race conditions or sensitivity to seemingly unrelated things like the scheduling algorithm.
+
+Finally, there is a possibility that some of the algorithms (e.g., quadrature, or perhaps optimizers in the future) use random numbers under the hood.  This could throw off the streams, although setting the seed immediately before generating data should limit the mischief.  But, apart from the possibility this could throw off the simulated data, it also means the results might not be completely reproducible.  Some testing with `big4sim()` shows that our current code is not resetting the random generators, at least in the main thread.
+
+Note that all or our current code generates all the simulated data sequentially in the main thread or task.
 
 Packages
 ========

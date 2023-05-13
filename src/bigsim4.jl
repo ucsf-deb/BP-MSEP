@@ -1045,6 +1045,7 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 continue
             end
             started!(siminfo, i1, i2, i3)
+            # Next line means all μ, σ and ncs values start with same stream
             Random.seed!(seed+nIter)
             multi = maker(nclusters=siminfo.data[i1, i2, i3].nClusters, nclustersize=ncs, k=μ, σ=σ)
             multi.clusters.zhat .= -100.0 # broadcast to make new columns

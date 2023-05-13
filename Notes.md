@@ -58,9 +58,18 @@ Packages
 ========
 Notes on some late additions to the environment.
 
-Added so Gadfly can output pdf, ps, png, or anything but svg:
-Cairo
-Fontconfig
+Added so `Gadfly` can output pdf, ps, png, or anything but svg:
+  * `Cairo`
+  * `Fontconfig`
+
+Added to support post-processing or debugging:
+  * `Tables` (to output `NamedArray` to `CSV`)
+  * `CSV`
+
+`Unitful` was for an approach to handling time in `bigsim4.jl`.  I don't think I used it.
+
+`MixedModels` was for inspection and possible future use to specify models.  Not currently used?
+
 
 Design of `Evaluator`s
 ======================

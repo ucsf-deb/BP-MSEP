@@ -1014,10 +1014,6 @@ function simulate(si::SimInfo, ml::MultiLevel, ev::Evaluator, nclustersize::Int,
         wait(t)
     end
 end
-###test
-function nothing_burger()
-    return 2
-end
 
 """
 Simulate over the range of scenarios given by the arguments,
@@ -1053,42 +1049,25 @@ function big4sim(evr::EVRequests; μs=[-1.0, -2.0],
                 if isDone(siminfo, i1, i2, i3, i4)
                     continue
                 end
-
                 started!(siminfo, i1, i2, i3, i4)
                 ev = fest(μ, σ) # construct appropriate evaluator
 
-                ## test "-2.0", "0.5", "20", "zSQ(λ=0.4)", "2.5"
-                if nIter == 8378 && μ == -2.0 && σ == 0.5 && ncs == 20 && name(ev) == "zSQ" && ev.λ ==0.4
-                    # do the estimation. results in multi
-                    simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
-                    isfocus = true
-                    open("screwy03-Multi.jld", "w") do io
-                        serialize(io, multi)
+                # do the estimation. results in multi
+                simulate(siminfo, multi, ev, ncs, siminfo.data[i1, i2, i3].nClusters)
+
+                for (i5, τ) in enumerate(τs)
+                    started!(siminfo, i1, i2, i3, i4, i5)
+                    msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
+                    # even if things are good enough, this is cheap to compute
+                    if addSEP(siminfo.msep[i1, i2, i3, i4, i5], sepabs(multi.clusters, τ))
+                        # since the validity is managed in main data structures
+                        # do not delegate this part to policy.
+                        # if msep was NaN there is no good data, and so no need to
+                        # invalidate.
+                        invalidate(siminfo, i1, i2, i3, i4, i5)
                     end
-                else
-                    # there is some risk this will be optimized away
-                    tasks = [Threads.@spawn nothing_burger() for i in 1:Threads.nthreads()]
-                    isfocus = false
-                end
-                ## test
-                if isfocus
-                    println("leading indices ", i1, i2, i3, i4)
-                    for (i5, τ) in enumerate(τs)
-                        started!(siminfo, i1, i2, i3, i4, i5)
-                        msepinfo = siminfo.msep[i1, i2, i3, i4, i5]
-                        # even if things are good enough, this is cheap to compute
-                        if addSEP(siminfo.msep[i1, i2, i3, i4, i5], sepabs(multi.clusters, τ))
-                            # since the validity is managed in main data structures
-                            # do not delegate this part to policy.
-                            # if msep was NaN there is no good data, and so no need to
-                            # invalidate.
-                            ## test
-                            println(τ, " : ", siminfo.msep[i1, i2, i3, i4, i5].msep[1])
-                            invalidate(siminfo, i1, i2, i3, i4, i5)
-                        end
-                        post_push(siminfo.policy, siminfo, i1, i2, i3, i4, i5)
-                        finished!(siminfo, i1, i2, i3, i4, i5)
-                    end
+                    post_push(siminfo.policy, siminfo, i1, i2, i3, i4, i5)
+                    finished!(siminfo, i1, i2, i3, i4, i5)
                 end
                 finished!(siminfo, i1, i2, i3, i4)
             end
@@ -1152,21 +1131,20 @@ myr = EVRequests([
 =#
 
 #si = big4sim(myr; σs=[0.25, 1.0], τs=[0.0, 1.25], clusterSizes=[5, 100], maxsd = 0.1);
-si = big4sim(myr; targetIter = 8378);
-if false
+if true
     si = big4sim(myr; targetIter = 10000)
     try
         # if someone has a lock on the file the next operation will fail.
-        toCSV("bigsim4.csv", si)
+        toCSV("bigsim4b.csv", si)
     catch exc
         showerror(stdout, exc)
     end
-    open("bigsim4.jld", "w") do io
+    open("bigsim4b.jld", "w") do io
         serialize(io, si)
     end
 end
 
 if false
-    si = deserialize("src/bigsim4.jld");
+    si = deserialize("src/bigsim4b.jld");
     mi = si.msep["-2.0", "0.5", "20", "zSQ(λ=0.4)", "2.5"];
 end
